@@ -18,6 +18,8 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
 
 ## Quick start
 
+> **New to this repo?** Start with [GETTING-STARTED.md](GETTING-STARTED.md) for a complete step-by-step walkthrough including local setup, Azure OIDC federation, GitHub configuration, and first deployment. This guide takes ~45–60 minutes and covers everything from scratch.
+
 ### Prerequisites
 - Terraform CLI: `>= 1.14.9, < 2.0.0` (local)
 - Bicep CLI: `>= 0.42.1` (local)
