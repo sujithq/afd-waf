@@ -29,10 +29,21 @@ jobs:
       - name: Deploy config payload
         shell: pwsh
         run: |
-          ./scripts/deploy-config.ps1 -Environment ${{ inputs.environment }} -Mode ${{ inputs.mode }}
+          ./scripts/deploy-config.ps1 `
+            -Environment ${{ inputs.environment }} `
+            -Mode ${{ inputs.mode }} `
+            -SubscriptionId "${{ secrets.AZURE_SUBSCRIPTION_ID }}" `
+            -ResourceGroup "${{ secrets.AZURE_RESOURCE_GROUP }}" `
+            -WafPolicyName "${{ vars.WAF_POLICY_NAME }}"
 
       - name: Smoke test
         if: inputs.environment == 'dev' || inputs.environment == 'test'
         shell: pwsh
         run: |
           ./scripts/smoke-odata.ps1 -BaseUrl "${{ secrets.AFD_BASE_URL }}"
+
+      - name: Publish config manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: waf-config-manifest-${{ inputs.environment }}
+          path: waf-config-manifest-${{ inputs.environment }}.json

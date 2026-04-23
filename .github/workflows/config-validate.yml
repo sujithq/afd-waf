@@ -15,11 +15,31 @@ jobs:
         shell: pwsh
         run: |
           $envs = @('dev','test','prod')
+          $schemaPath = "config/waf/schema/waf-tuning.schema.json"
+
+          if (!(Test-Path $schemaPath)) {
+            throw "Missing schema file: $schemaPath"
+          }
+
           foreach ($e in $envs) {
             $exc = "config/waf/$e/exclusions.json"
             $ovr = "config/waf/$e/rule-overrides.json"
+
+            if (!(Test-Path $exc)) {
+              throw "Missing exclusions file: $exc"
+            }
+
+            if (!(Test-Path $ovr)) {
+              throw "Missing overrides file: $ovr"
+            }
+
             Get-Content $exc | ConvertFrom-Json | Out-Null
             Get-Content $ovr | ConvertFrom-Json | Out-Null
+
+            $isValid = Test-Json -Path $exc -SchemaFile $schemaPath
+            if (-not $isValid) {
+              throw "Schema validation failed for $exc"
+            }
           }
 
           $all = Get-ChildItem config/waf -Recurse -File | ForEach-Object { Get-Content $_.FullName -Raw }

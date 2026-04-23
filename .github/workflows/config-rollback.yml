@@ -30,4 +30,9 @@ jobs:
       - name: Apply known-good config
         shell: pwsh
         run: |
-          ./scripts/deploy-config.ps1 -Environment ${{ inputs.environment }} -Mode Detection
+          ./scripts/deploy-config.ps1 `
+            -Environment ${{ inputs.environment }} `
+            -Mode Detection `
+            -SubscriptionId "${{ secrets.AZURE_SUBSCRIPTION_ID }}" `
+            -ResourceGroup "${{ secrets.AZURE_RESOURCE_GROUP }}" `
+            -WafPolicyName "${{ vars.WAF_POLICY_NAME }}"
