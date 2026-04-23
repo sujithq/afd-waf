@@ -2,7 +2,11 @@
 
 This guide walks you through setting up this repository from scratch, from local environment setup through your first Azure deployment.
 
+**Supported shells**: PowerShell (`pwsh`), Bash, or Zsh on Windows, macOS, or Linux
+
 **Time estimate**: 45–60 minutes (depending on Azure org policies)
+
+**Note**: Most commands are shell-agnostic and work in both PowerShell and bash. Where differences exist (e.g., variable assignment syntax), both variants are shown.
 
 **Table of Contents**
 1. [Prerequisites](#prerequisites)
@@ -81,6 +85,7 @@ az --version
 
 ### 2. Clone and Navigate to Repository
 
+**PowerShell** or **bash**:
 ```bash
 git clone https://github.com/<YOUR_ORG>/<YOUR_REPO>.git afd-waf-repo
 cd afd-waf-repo
@@ -88,6 +93,7 @@ cd afd-waf-repo
 
 ### 3. Authenticate to Azure Locally
 
+**PowerShell** or **bash**:
 ```bash
 az login
 
@@ -106,10 +112,36 @@ az account show
 
 Create one resource group per environment (dev, test, prod):
 
+**PowerShell**:
+```powershell
+# Set variables for convenience
+$SUBSCRIPTION_ID = (az account show --query id -o tsv)
+$LOCATION = "westus2"  # Change to your preferred region
+
+# Create dev resource group
+az group create `
+  --name afd-waf-dev-rg `
+  --location $LOCATION
+
+# Create test resource group
+az group create `
+  --name afd-waf-test-rg `
+  --location $LOCATION
+
+# Create prod resource group
+az group create `
+  --name afd-waf-prod-rg `
+  --location $LOCATION
+
+# List created groups
+az group list --query "[].name" -o table
+```
+
+**Bash**:
 ```bash
 # Set variables for convenience
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-LOCATION=westus2  # Change to your preferred region
+LOCATION="westus2"  # Change to your preferred region
 
 # Create dev resource group
 az group create \
@@ -132,6 +164,34 @@ az group list --query "[].name" -o table
 
 ### 2. Create Storage Account for Terraform Remote State (Optional but Recommended)
 
+**PowerShell**:
+```powershell
+# Storage account names must be globally unique and lowercase
+$TIMESTAMP = Get-Date -UFormat "%s"
+$STORAGE_ACCOUNT = "afdwaftf$TIMESTAMP"
+
+# Create storage account for Terraform state
+az storage account create `
+  --name $STORAGE_ACCOUNT `
+  --resource-group afd-waf-dev-rg `
+  --location $LOCATION `
+  --sku Standard_LRS
+
+# Create storage container
+az storage container create `
+  --account-name $STORAGE_ACCOUNT `
+  --name tfstate `
+  --auth-mode login
+
+Write-Host "Storage Account: $STORAGE_ACCOUNT"
+Write-Host "Connection string:"
+az storage account show-connection-string `
+  --name $STORAGE_ACCOUNT `
+  --resource-group afd-waf-dev-rg `
+  --query connectionString -o tsv
+```
+
+**Bash**:
 ```bash
 # Storage account names must be globally unique and lowercase
 STORAGE_ACCOUNT="afdwaftf$(date +%s)"
@@ -165,6 +225,28 @@ GitHub OIDC federation replaces long-lived service principal secrets with short-
 
 ### 1. Create an Entra Application
 
+**PowerShell**:
+```powershell
+# Create the Entra app (service principal)
+$APP_NAME = "afd-waf-github-ci"
+$APP_RESPONSE = az ad app create --display-name $APP_NAME | ConvertFrom-Json
+$APP_ID = $APP_RESPONSE.id
+$CLIENT_ID = $APP_RESPONSE.appId
+
+# Create the service principal
+az ad sp create --id $CLIENT_ID
+
+# Get your tenant ID
+$TENANT_ID = (az account show --query tenantId -o tsv)
+
+Write-Host "App ID (for manifest): $APP_ID"
+Write-Host "Client ID (for GitHub): $CLIENT_ID"
+Write-Host "Tenant ID (for GitHub): $TENANT_ID"
+
+# Save these values—you'll need them in GitHub configuration
+```
+
+**Bash**:
 ```bash
 # Create the Entra app (service principal)
 APP_NAME="afd-waf-github-ci"
@@ -189,6 +271,49 @@ echo "Tenant ID (for GitHub): $TENANT_ID"
 
 GitHub OIDC federation requires a federated credential per environment or branch pattern.
 
+**PowerShell**:
+```powershell
+# For dev environment
+$devCred = @{
+    name       = "afd-waf-github-dev"
+    issuer     = "https://token.actions.githubusercontent.com"
+    subject    = "repo:<YOUR_GITHUB_ORG>/<YOUR_REPO>:environment:dev"
+    audiences  = @("api://AzureADTokenExchange")
+}
+az ad app federated-credential create --id $APP_ID --parameters ($devCred | ConvertTo-Json)
+
+# For test environment
+$testCred = @{
+    name       = "afd-waf-github-test"
+    issuer     = "https://token.actions.githubusercontent.com"
+    subject    = "repo:<YOUR_GITHUB_ORG>/<YOUR_REPO>:environment:test"
+    audiences  = @("api://AzureADTokenExchange")
+}
+az ad app federated-credential create --id $APP_ID --parameters ($testCred | ConvertTo-Json)
+
+# For prod environment
+$prodCred = @{
+    name       = "afd-waf-github-prod"
+    issuer     = "https://token.actions.githubusercontent.com"
+    subject    = "repo:<YOUR_GITHUB_ORG>/<YOUR_REPO>:environment:prod"
+    audiences  = @("api://AzureADTokenExchange")
+}
+az ad app federated-credential create --id $APP_ID --parameters ($prodCred | ConvertTo-Json)
+
+# For PR/merge-to-main branch (optional)
+$mainCred = @{
+    name       = "afd-waf-github-main"
+    issuer     = "https://token.actions.githubusercontent.com"
+    subject    = "repo:<YOUR_GITHUB_ORG>/<YOUR_REPO>:ref:refs/heads/main"
+    audiences  = @("api://AzureADTokenExchange")
+}
+az ad app federated-credential create --id $APP_ID --parameters ($mainCred | ConvertTo-Json)
+
+# Verify all credentials were created
+az ad app federated-credential list --id $APP_ID
+```
+
+**Bash**:
 ```bash
 # For dev environment
 az ad app federated-credential create \
@@ -238,6 +363,41 @@ az ad app federated-credential list --id "$APP_ID"
 
 Grant the service principal only the roles it needs per environment (least privilege).
 
+**PowerShell**:
+```powershell
+# Get the service principal object ID
+$SP_OBJECT_ID = (az ad sp show --id $CLIENT_ID --query id -o tsv)
+
+# For DEV: Broad access for testing
+az role assignment create `
+  --assignee-object-id $SP_OBJECT_ID `
+  --role "Contributor" `
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-dev-rg"
+
+# For TEST: Restricted to necessary roles
+az role assignment create `
+  --assignee-object-id $SP_OBJECT_ID `
+  --role "CDN Profile Contributor" `
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-test-rg"
+
+az role assignment create `
+  --assignee-object-id $SP_OBJECT_ID `
+  --role "API Management Service Contributor" `
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-test-rg"
+
+# For PROD: Minimal + approval gates (enforced in GitHub)
+az role assignment create `
+  --assignee-object-id $SP_OBJECT_ID `
+  --role "CDN Profile Contributor" `
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-prod-rg"
+
+# Verify role assignments
+az role assignment list `
+  --assignee $CLIENT_ID `
+  --output table
+```
+
+**Bash**:
 ```bash
 # Get the service principal object ID
 SP_OBJECT_ID=$(az ad sp show --id "$CLIENT_ID" --query id -o tsv)
@@ -345,6 +505,7 @@ Before pushing to GitHub, validate your infrastructure code locally.
 
 ### 1. Validate Bicep
 
+**PowerShell** or **bash**:
 ```bash
 # Navigate to Bicep directory
 cd infra/bicep
@@ -360,6 +521,7 @@ rm main.json
 
 ### 2. Validate Terraform
 
+**PowerShell** or **bash**:
 ```bash
 # Navigate to Terraform directory
 cd ../terraform
@@ -382,7 +544,8 @@ terraform plan \
 
 ### 3. Check AVM Governance
 
-```bash
+**PowerShell**:
+```powershell
 # Navigate to repo root
 cd ../..
 
@@ -390,6 +553,18 @@ cd ../..
 powershell -File scripts/check-avm-versions.ps1
 
 # Expected output: "AVM governance check passed"
+```
+
+**Bash**:
+```bash
+# Navigate to repo root
+cd ../..
+
+# Run AVM governance checks (if compatible with bash)
+bash scripts/check-avm-versions.ps1
+
+# Or on macOS/Linux, run PowerShell if installed
+pwsh -File scripts/check-avm-versions.ps1
 ```
 
 ---
@@ -400,6 +575,7 @@ Once validation passes, deploy infrastructure to the dev environment.
 
 ### 1. Create a Feature Branch and Push
 
+**PowerShell** or **bash**:
 ```bash
 # Create and switch to a feature branch
 git checkout -b feat/initial-setup
@@ -445,6 +621,18 @@ The deployment will:
 
 After deployment, capture the AFD base URL:
 
+**PowerShell**:
+```powershell
+# From deployment outputs or Azure portal
+$AFD_BASE_URL = (az deployment group show `
+  --resource-group afd-waf-dev-rg `
+  --name main `
+  --query 'properties.outputs.frontDoorFqdn.value' -o tsv)
+
+Write-Host "AFD Base URL: $AFD_BASE_URL"
+```
+
+**Bash**:
 ```bash
 # From deployment outputs or Azure portal
 AFD_BASE_URL=$(az deployment group show \
@@ -465,7 +653,8 @@ Update the `AFD_BASE_URL` variable in your GitHub dev environment with this valu
 
 Test that AFD routes to APIM and returns a 200 response:
 
-```bash
+**PowerShell**:
+```powershell
 # From repo root
 powershell -File scripts/smoke-odata.ps1 `
   -AfdBaseUrl "https://afd-dev-xxxx.azurefd.net" `
@@ -477,8 +666,36 @@ powershell -File scripts/smoke-odata.ps1 `
 # GET /api2/odata?$orderby=id ... 200 OK
 ```
 
+**Bash** (if script is adapted to bash):
+```bash
+# From repo root
+bash scripts/smoke-odata.ps1 \
+  --afd-base-url "https://afd-dev-xxxx.azurefd.net" \
+  --environment dev
+```
+
 ### 2. Verify WAF is Active
 
+**PowerShell**:
+```powershell
+# Check WAF policy mode (should be Detection for dev)
+az network front-door waf-policy show `
+  --resource-group afd-waf-dev-rg `
+  --name afd-waf-dev-policy `
+  --query enabledState
+
+# Expected output: "Enabled"
+
+# Check WAF mode (detection vs. prevention)
+az network front-door waf-policy show `
+  --resource-group afd-waf-dev-rg `
+  --name afd-waf-dev-policy `
+  --query mode
+
+# Expected output: "Detection"
+```
+
+**Bash**:
 ```bash
 # Check WAF policy mode (should be Detection for dev)
 az network front-door waf-policy show \
@@ -501,8 +718,21 @@ az network front-door waf-policy show \
 
 WAF logs are sent to Log Analytics. Query them using KQL:
 
+**PowerShell**:
+```powershell
+# Export KQL template
+Get-Content scripts/export-waf-evidence.kql
+
+# In Azure Portal:
+# 1. Go to your Log Analytics workspace
+# 2. Click Logs
+# 3. Paste the KQL query
+# 4. Run to see recent WAF logs
+```
+
+**Bash**:
 ```bash
-# Export KQL template (copy to Azure Portal → Log Analytics)
+# Export KQL template
 cat scripts/export-waf-evidence.kql
 
 # In Azure Portal:
