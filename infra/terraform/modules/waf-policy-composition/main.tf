@@ -1,10 +1,11 @@
 # avm-id: terraform-waf-composition
-resource "azurerm_cdn_frontdoor_firewall_policy" "this" {
+module "waf_policy" {
+  source  = "Azure/avm-res-network-frontdoorwebapplicationfirewallpolicy/azurerm"
+  version = "0.1.0"
+
   name                = "${var.name_prefix}-waf-${var.environment}"
   resource_group_name = var.resource_group_name
   sku_name            = "Premium_AzureFrontDoor"
-  enabled             = true
   mode                = var.waf_mode
+  enable_telemetry    = true
 }
-
-# AVM note: replace direct resource with pinned AVM module source when approved.

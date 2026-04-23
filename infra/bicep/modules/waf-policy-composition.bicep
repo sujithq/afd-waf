@@ -10,14 +10,11 @@ param wafMode string
 var policyName = '${namePrefix}-waf-${environment}'
 
 // avm-id: bicep-waf-composition
-// AVM composition: replace with exact published AVM URI/version approved by your platform team.
-resource wafPolicy 'Microsoft.Network/frontdoorWebApplicationFirewallPolicies@2024-02-01' = {
-  name: policyName
-  location: 'Global'
-  sku: {
-    name: 'Premium_AzureFrontDoor'
-  }
-  properties: {
+module wafPolicy 'br/public:avm/res/network/front-door-web-application-firewall-policy:0.3.3' = {
+  name: 'wafPolicy'
+  params: {
+    name: policyName
+    sku: 'Premium_AzureFrontDoor'
     policySettings: {
       enabledState: 'Enabled'
       mode: wafMode
@@ -37,4 +34,4 @@ resource wafPolicy 'Microsoft.Network/frontdoorWebApplicationFirewallPolicies@20
   }
 }
 
-output wafPolicyId string = wafPolicy.id
+output wafPolicyId string = wafPolicy.outputs.resourceId

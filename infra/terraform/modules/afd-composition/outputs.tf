@@ -1,3 +1,3 @@
 output "frontdoor_profile_id" {
-  value = azurerm_cdn_frontdoor_profile.this.id
+  value = module.afd.resource_id
 }

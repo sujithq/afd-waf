@@ -7,19 +7,16 @@ param publisherName string
 var apimName = toLower('${namePrefix}-apim-${environment}')
 
 // avm-id: bicep-apim-composition
-// AVM composition: replace with AVM module reference once pinned in module registry policy.
-resource apim 'Microsoft.ApiManagement/service@2023-05-01-preview' = {
-  name: apimName
-  location: location
-  sku: {
-    name: 'Developer'
-    capacity: 1
-  }
-  properties: {
+module apim 'br/public:avm/res/api-management/service:0.14.1' = {
+  name: 'apim'
+  params: {
+    name: apimName
+    location: location
     publisherEmail: publisherEmail
     publisherName: publisherName
+    sku: 'Developer'
   }
 }
 
-output apimName string = apim.name
-output gatewayHostName string = '${apim.name}.azure-api.net'
+output apimName string = apim.outputs.name
+output gatewayHostName string = '${apim.outputs.name}.azure-api.net'

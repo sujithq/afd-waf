@@ -1,7 +1,7 @@
 output "apim_name" {
-  value = azurerm_api_management.this.name
+  value = module.apim.name
 }
 
 output "apim_gateway_host" {
-  value = azurerm_api_management.this.gateway_url
+  value = module.apim.apim_gateway_url
 }

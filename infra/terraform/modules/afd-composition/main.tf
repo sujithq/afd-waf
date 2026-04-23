@@ -1,66 +1,95 @@
 # avm-id: terraform-afd-composition
-resource "azurerm_cdn_frontdoor_profile" "this" {
+module "afd" {
+  source  = "Azure/avm-res-cdn-profile/azurerm"
+  version = "0.1.9"
+
   name                = "${var.name_prefix}-afd-${var.environment}"
+  location            = var.location
   resource_group_name = var.resource_group_name
-  sku_name            = "Premium_AzureFrontDoor"
-}
+  sku                 = "Premium_AzureFrontDoor"
+  enable_telemetry    = true
 
-resource "azurerm_cdn_frontdoor_endpoint" "this" {
-  name                     = "${var.name_prefix}-ep-${var.environment}"
-  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this.id
-}
-
-resource "azurerm_cdn_frontdoor_origin_group" "this" {
-  name                     = "${var.name_prefix}-og-${var.environment}"
-  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this.id
-
-  load_balancing {
-    sample_size                        = 4
-    successful_samples_required        = 3
-    additional_latency_in_milliseconds = 50
+  front_door_endpoints = {
+    endpoint = {
+      name = "${var.name_prefix}-ep-${var.environment}"
+    }
   }
-}
 
-resource "azurerm_cdn_frontdoor_origin" "apim" {
-  name                          = "apim-origin"
-  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.this.id
-  host_name                     = replace(var.apim_gateway_host, "https://", "")
-  http_port                     = 80
-  https_port                    = 443
-  origin_host_header            = replace(var.apim_gateway_host, "https://", "")
-  priority                      = 1
-  weight                        = 1000
-  certificate_name_check_enabled = true
-}
+  front_door_origin_groups = {
+    apim_group = {
+      name = "${var.name_prefix}-og-${var.environment}"
+      load_balancing = {
+        default = {
+          sample_size                        = 4
+          successful_samples_required        = 3
+          additional_latency_in_milliseconds = 50
+        }
+      }
+      health_probe = {
+        default = {
+          interval_in_seconds = 120
+          path                = "/status-0123456789abcdef"
+          protocol            = "Https"
+          request_type        = "HEAD"
+        }
+      }
+    }
+  }
 
-resource "azurerm_cdn_frontdoor_route" "default" {
-  name                          = "default"
-  cdn_frontdoor_endpoint_id     = azurerm_cdn_frontdoor_endpoint.this.id
-  cdn_frontdoor_origin_group_id = azurerm_cdn_frontdoor_origin_group.this.id
-  cdn_frontdoor_origin_ids      = [azurerm_cdn_frontdoor_origin.apim.id]
-  patterns_to_match             = ["/*"]
-  supported_protocols           = ["Http", "Https"]
-  forwarding_protocol           = "HttpsOnly"
-  https_redirect_enabled        = true
-  link_to_default_domain        = true
-}
+  front_door_origins = {
+    apim_origin = {
+      name                           = "apim-origin"
+      origin_group_key               = "apim_group"
+      host_name                      = replace(var.apim_gateway_host, "https://", "")
+      origin_host_header             = replace(var.apim_gateway_host, "https://", "")
+      http_port                      = 80
+      https_port                     = 443
+      enabled                        = true
+      certificate_name_check_enabled = true
+      priority                       = 1
+      weight                         = 1000
+    }
+  }
 
-resource "azurerm_cdn_frontdoor_security_policy" "waf" {
-  name                     = "waf-association"
-  cdn_frontdoor_profile_id = azurerm_cdn_frontdoor_profile.this.id
+  front_door_routes = {
+    default = {
+      name                   = "default"
+      endpoint_key           = "endpoint"
+      origin_group_key       = "apim_group"
+      origin_keys            = ["apim_origin"]
+      patterns_to_match      = ["/*"]
+      supported_protocols    = ["Http", "Https"]
+      forwarding_protocol    = "HttpsOnly"
+      https_redirect_enabled = true
+    }
+  }
 
-  security_policies {
-    firewall {
-      cdn_frontdoor_firewall_policy_id = var.waf_policy_id
+  front_door_firewall_policies = {
+    waf = {
+      name                = "${var.name_prefix}-waf-${var.environment}"
+      resource_group_name = var.resource_group_name
+      sku_name            = "Premium_AzureFrontDoor"
+      mode                = "Detection"
+      managed_rules = {
+        drs = {
+          type    = "Microsoft_DefaultRuleSet"
+          version = "2.1"
+          action  = "Log"
+        }
+      }
+    }
+  }
 
-      association {
-        patterns_to_match = ["/*"]
-        domain {
-          cdn_frontdoor_domain_id = azurerm_cdn_frontdoor_endpoint.this.id
+  front_door_security_policies = {
+    waf_association = {
+      name = "waf-association"
+      firewall = {
+        front_door_firewall_policy_key = "waf"
+        association = {
+          endpoint_keys     = ["endpoint"]
+          patterns_to_match = ["/*"]
         }
       }
     }
   }
 }
-
-# AVM note: replace direct resources with pinned AVM modules as part of module governance.
