@@ -1,0 +1,30 @@
+name: Config Validate
+
+on:
+  pull_request:
+    paths:
+      - 'config/waf/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate JSON payloads and security guardrails
+        shell: pwsh
+        run: |
+          $envs = @('dev','test','prod')
+          foreach ($e in $envs) {
+            $exc = "config/waf/$e/exclusions.json"
+            $ovr = "config/waf/$e/rule-overrides.json"
+            Get-Content $exc | ConvertFrom-Json | Out-Null
+            Get-Content $ovr | ConvertFrom-Json | Out-Null
+          }
+
+          $all = Get-ChildItem config/waf -Recurse -File | ForEach-Object { Get-Content $_.FullName -Raw }
+          foreach ($txt in $all) {
+            if ($txt -match '"ruleId"\s*:\s*"\*"') {
+              throw "Wildcard ruleId is not allowed"
+            }
+          }

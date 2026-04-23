@@ -1,0 +1,42 @@
+name: Infra Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [dev, test, prod]
+      iac:
+        description: IaC stack
+        required: true
+        type: choice
+        options: [bicep, terraform]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy bicep
+        if: inputs.iac == 'bicep'
+        run: |
+          az deployment group create \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --template-file infra/bicep/main.bicep \
+            --parameters @infra/bicep/env/${{ inputs.environment }}.parameters.json
+
+      - name: Deploy terraform
+        if: inputs.iac == 'terraform'
+        run: |
+          cd infra/terraform
+          terraform init
+          terraform apply -auto-approve -var-file env/${{ inputs.environment }}.tfvars

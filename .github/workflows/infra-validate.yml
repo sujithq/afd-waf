@@ -1,0 +1,28 @@
+name: Infra Validate
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - 'scripts/check-avm-versions.ps1'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bicep lint
+        run: |
+          az bicep build --file infra/bicep/main.bicep
+
+      - name: Terraform fmt and validate
+        run: |
+          cd infra/terraform
+          terraform init -backend=false
+          terraform fmt -check -recursive
+          terraform validate
+
+      - name: AVM governance marker check
+        shell: pwsh
+        run: ./scripts/check-avm-versions.ps1 -RepoRoot .

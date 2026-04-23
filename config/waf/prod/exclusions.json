@@ -1,0 +1,26 @@
+{
+  "metadata": {
+    "changeTicket": "CHG-PROD-0001",
+    "owner": "platform-security",
+    "reason": "Promoted tested OData exclusions",
+    "expiresOn": "2026-12-31"
+  },
+  "exclusions": [
+    {
+      "matchVariable": "QueryStringArgNames",
+      "selectorMatchOperator": "Equals",
+      "selector": "$filter",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "REQUEST-942-APPLICATION-ATTACK-SQLI",
+      "ruleId": "942100"
+    },
+    {
+      "matchVariable": "QueryStringArgNames",
+      "selectorMatchOperator": "Equals",
+      "selector": "$orderby",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "REQUEST-942-APPLICATION-ATTACK-SQLI",
+      "ruleId": "942110"
+    }
+  ]
+}

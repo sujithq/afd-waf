@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WAF tuning package",
+  "type": "object",
+  "required": ["metadata", "exclusions"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["changeTicket", "owner", "reason", "expiresOn"],
+      "properties": {
+        "changeTicket": { "type": "string", "minLength": 1 },
+        "owner": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "expiresOn": { "type": "string", "format": "date" }
+      }
+    },
+    "exclusions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["matchVariable", "selectorMatchOperator", "selector", "ruleSet", "ruleGroup", "ruleId"],
+        "properties": {
+          "matchVariable": { "type": "string", "enum": ["QueryStringArgNames"] },
+          "selectorMatchOperator": { "type": "string", "enum": ["Equals"] },
+          "selector": { "type": "string" },
+          "ruleSet": { "type": "string" },
+          "ruleGroup": { "type": "string" },
+          "ruleId": { "type": "string" }
+        }
+      }
+    }
+  }
+}

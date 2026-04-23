@@ -1,0 +1,38 @@
+name: Config Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [dev, test, prod]
+      mode:
+        description: WAF mode
+        required: true
+        type: choice
+        options: [Detection, Prevention]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy config payload
+        shell: pwsh
+        run: |
+          ./scripts/deploy-config.ps1 -Environment ${{ inputs.environment }} -Mode ${{ inputs.mode }}
+
+      - name: Smoke test
+        if: inputs.environment == 'dev' || inputs.environment == 'test'
+        shell: pwsh
+        run: |
+          ./scripts/smoke-odata.ps1 -BaseUrl "${{ secrets.AFD_BASE_URL }}"

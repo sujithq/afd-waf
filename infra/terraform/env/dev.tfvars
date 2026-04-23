@@ -1,0 +1,6 @@
+location = "westeurope"
+environment = "dev"
+name_prefix = "acafd"
+waf_mode = "Detection"
+apim_publisher_email = "platform@example.com"
+apim_publisher_name = "Platform Team"

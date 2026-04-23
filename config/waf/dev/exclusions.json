@@ -1,0 +1,26 @@
+{
+  "metadata": {
+    "changeTicket": "CHG-DEV-0001",
+    "owner": "platform-security",
+    "reason": "Allow legitimate OData query selectors in detection",
+    "expiresOn": "2026-12-31"
+  },
+  "exclusions": [
+    {
+      "matchVariable": "QueryStringArgNames",
+      "selectorMatchOperator": "Equals",
+      "selector": "$filter",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "REQUEST-942-APPLICATION-ATTACK-SQLI",
+      "ruleId": "942100"
+    },
+    {
+      "matchVariable": "QueryStringArgNames",
+      "selectorMatchOperator": "Equals",
+      "selector": "$orderby",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "REQUEST-942-APPLICATION-ATTACK-SQLI",
+      "ruleId": "942110"
+    }
+  ]
+}
