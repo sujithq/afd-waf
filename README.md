@@ -17,8 +17,51 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
 - docs: architecture and runbooks.
 
 ## Quick start
-1. Configure GitHub OIDC and workflow variables listed in docs/devops-setup.md.
-2. Run Infra Validate workflow from a pull request.
-3. Run Infra Deploy workflow to provision base resources in dev.
-4. Commit config/waf changes and run Config Deploy in Detection mode.
-5. Run smoke test script and inspect WAF evidence before promotion.
+
+### Prerequisites
+- Terraform CLI: `>= 1.14.9, < 2.0.0` (local)
+- Bicep CLI: `>= 0.42.1` (local)
+- Azure CLI: latest (workflows auto-upgrade at runtime)
+- PowerShell 7+ (for local helper scripts)
+- GitHub OIDC federated credentials configured (see docs/devops-setup.md for step-by-step setup)
+
+### Deployment flow
+
+1. **Configure OIDC and GitHub variables** (one-time setup):
+   - Follow docs/devops-setup.md step-by-step OIDC section
+   - Add GitHub variables listed in devops-setup.md to your repository environments
+   - Verify federated credentials: `az ad app federated-credential list --id <APPLICATION_ID>`
+
+2. **Validate locally before pushing**:
+   ```bash
+   # Validate Bicep
+   az bicep build --file infra/bicep/main.bicep
+   
+   # Validate Terraform
+   cd infra/terraform
+   terraform init
+   terraform validate
+   terraform plan -var-file=env/dev.tfvars -out=tfplan
+   ```
+
+3. **Push to branch and open PR**:
+   - Infra Validate workflow runs automatically (lint, schema, what-if)
+   - Review CI outputs and lock file diff
+   - Merge when all checks pass
+
+4. **Deploy infra to dev** (manual trigger):
+   - Run Infra Deploy workflow targeting dev environment
+   - Workflow uses OIDC to authenticate (no secrets in logs)
+   - Terraform and Bicep deployments tracked in Azure activity log
+
+5. **Deploy WAF config** (after infra is stable):
+   - Commit config/waf changes
+   - Infra Validate checks schema and policy guardrails
+   - Config Deploy runs in **Detection mode** first (safe to test)
+   - Monitor AFD WAF logs for tuning effectiveness
+   - Manually approve promotion to Prevention mode
+
+6. **Smoke test and evidence collection**:
+   - Run `scripts/smoke-odata.ps1` against AFD hostname to generate test traffic
+   - Export WAF evidence using KQL template in `scripts/export-waf-evidence.kql`
+   - Use findings to refine exclusions in next iteration
