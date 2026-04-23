@@ -17,7 +17,7 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
 - docs: architecture and runbooks.
 
 ## Quick start
-1. Configure workflow secrets and variables listed in docs/devops-setup.md.
+1. Configure GitHub OIDC and workflow variables listed in docs/devops-setup.md.
 2. Run Infra Validate workflow from a pull request.
 3. Run Infra Deploy workflow to provision base resources in dev.
 4. Commit config/waf changes and run Config Deploy in Detection mode.
