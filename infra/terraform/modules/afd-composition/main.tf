@@ -63,31 +63,21 @@ module "afd" {
       https_redirect_enabled = true
     }
   }
+}
 
-  front_door_firewall_policies = {
-    waf = {
-      name                = "${var.name_prefix}-waf-${var.environment}"
-      resource_group_name = var.resource_group_name
-      sku_name            = "Premium_AzureFrontDoor"
-      mode                = "Detection"
-      managed_rules = {
-        drs = {
-          type    = "Microsoft_DefaultRuleSet"
-          version = "2.1"
-          action  = "Log"
-        }
-      }
-    }
-  }
+resource "azurerm_cdn_frontdoor_security_policy" "waf_association" {
+  name                     = "waf-association"
+  cdn_frontdoor_profile_id = module.afd.resource_id
 
-  front_door_security_policies = {
-    waf_association = {
-      name = "waf-association"
-      firewall = {
-        front_door_firewall_policy_key = "waf"
-        association = {
-          endpoint_keys     = ["endpoint"]
-          patterns_to_match = ["/*"]
+  security_policies {
+    firewall {
+      cdn_frontdoor_firewall_policy_id = var.waf_policy_id
+
+      association {
+        patterns_to_match = ["/*"]
+
+        domain {
+          cdn_frontdoor_domain_id = module.afd.frontdoor_endpoints["endpoint"].id
         }
       }
     }
