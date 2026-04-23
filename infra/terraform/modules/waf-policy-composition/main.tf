@@ -1,3 +1,4 @@
+# avm-id: terraform-waf-composition
 resource "azurerm_cdn_frontdoor_firewall_policy" "this" {
   name                = "${var.name_prefix}-waf-${var.environment}"
   resource_group_name = var.resource_group_name

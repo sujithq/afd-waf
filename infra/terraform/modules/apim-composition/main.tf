@@ -1,3 +1,4 @@
+# avm-id: terraform-apim-composition
 resource "azurerm_api_management" "this" {
   name                = lower("${var.name_prefix}-apim-${var.environment}")
   location            = var.location

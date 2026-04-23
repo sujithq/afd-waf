@@ -6,6 +6,7 @@ param publisherName string
 
 var apimName = toLower('${namePrefix}-apim-${environment}')
 
+// avm-id: bicep-apim-composition
 // AVM composition: replace with AVM module reference once pinned in module registry policy.
 resource apim 'Microsoft.ApiManagement/service@2023-05-01-preview' = {
   name: apimName

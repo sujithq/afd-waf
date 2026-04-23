@@ -8,6 +8,7 @@ var profileName = '${namePrefix}-afd-${environment}'
 var endpointName = '${namePrefix}-ep-${environment}'
 var originGroupName = '${namePrefix}-og-${environment}'
 
+// avm-id: bicep-afd-composition
 // AVM composition: replace resources below with pinned AVM profile and route modules.
 resource profile 'Microsoft.Cdn/profiles@2024-02-01' = {
   name: profileName

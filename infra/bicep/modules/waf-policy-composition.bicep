@@ -9,6 +9,7 @@ param wafMode string
 
 var policyName = '${namePrefix}-waf-${environment}'
 
+// avm-id: bicep-waf-composition
 // AVM composition: replace with exact published AVM URI/version approved by your platform team.
 resource wafPolicy 'Microsoft.Network/frontdoorWebApplicationFirewallPolicies@2024-02-01' = {
   name: policyName

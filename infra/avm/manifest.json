@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "bicep-afd-composition",
+      "stack": "bicep",
+      "file": "infra/bicep/modules/afd-composition.bicep",
+      "moduleRef": "br/public:avm/res/cdn/profile",
+      "pinnedVersion": "0.1.0"
+    },
+    {
+      "id": "bicep-waf-composition",
+      "stack": "bicep",
+      "file": "infra/bicep/modules/waf-policy-composition.bicep",
+      "moduleRef": "br/public:avm/res/network/front-door-web-application-firewall-policy",
+      "pinnedVersion": "0.1.0"
+    },
+    {
+      "id": "bicep-apim-composition",
+      "stack": "bicep",
+      "file": "infra/bicep/modules/apim-composition.bicep",
+      "moduleRef": "br/public:avm/res/api-management/service",
+      "pinnedVersion": "0.1.0"
+    },
+    {
+      "id": "terraform-afd-composition",
+      "stack": "terraform",
+      "file": "infra/terraform/modules/afd-composition/main.tf",
+      "moduleRef": "Azure/avm-res-cdn-frontdoor/azurerm",
+      "pinnedVersion": "0.1.0"
+    },
+    {
+      "id": "terraform-waf-composition",
+      "stack": "terraform",
+      "file": "infra/terraform/modules/waf-policy-composition/main.tf",
+      "moduleRef": "Azure/avm-res-network-frontdoorwebapplicationfirewallpolicy/azurerm",
+      "pinnedVersion": "0.1.0"
+    },
+    {
+      "id": "terraform-apim-composition",
+      "stack": "terraform",
+      "file": "infra/terraform/modules/apim-composition/main.tf",
+      "moduleRef": "Azure/avm-res-apimanagement-service/azurerm",
+      "pinnedVersion": "0.1.0"
+    }
+  ]
+}

@@ -4,21 +4,37 @@ Param(
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "Checking AVM governance markers"
+Write-Host "Checking AVM governance manifest and markers"
 
-$bicepFiles = Get-ChildItem -Path $RepoRoot -Recurse -Filter *.bicep | Select-Object -ExpandProperty FullName
-$tfFiles = Get-ChildItem -Path $RepoRoot -Recurse -Filter *.tf | Select-Object -ExpandProperty FullName
+$manifestPath = Join-Path $RepoRoot "infra/avm/manifest.json"
+if (!(Test-Path $manifestPath)) {
+  Write-Error "Missing AVM manifest at infra/avm/manifest.json"
+}
 
-$hits = @()
-foreach ($file in $bicepFiles + $tfFiles) {
-  $text = Get-Content $file -Raw
-  if ($text -match "AVM") {
-    $hits += $file
+$manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+if (-not $manifest.entries -or $manifest.entries.Count -eq 0) {
+  Write-Error "AVM manifest has no entries."
+}
+
+$versionPattern = '^\d+\.\d+\.\d+([\-+].+)?$'
+foreach ($entry in $manifest.entries) {
+  if (-not $entry.id -or -not $entry.file -or -not $entry.moduleRef -or -not $entry.pinnedVersion) {
+    Write-Error "Invalid AVM manifest entry detected."
+  }
+
+  if ($entry.pinnedVersion -notmatch $versionPattern) {
+    Write-Error "Invalid pinnedVersion '$($entry.pinnedVersion)' for entry '$($entry.id)'."
+  }
+
+  $targetFile = Join-Path $RepoRoot $entry.file
+  if (!(Test-Path $targetFile)) {
+    Write-Error "Manifest entry '$($entry.id)' points to missing file '$($entry.file)'."
+  }
+
+  $text = Get-Content $targetFile -Raw
+  if ($text -notmatch [regex]::Escape("avm-id: $($entry.id)")) {
+    Write-Error "File '$($entry.file)' is missing marker 'avm-id: $($entry.id)'."
   }
 }
 
-if ($hits.Count -eq 0) {
-  Write-Error "No AVM markers were found. Add AVM composition notes or module references."
-}
-
-Write-Host "AVM marker check passed"
+Write-Host "AVM governance check passed"
