@@ -116,7 +116,7 @@ Create one resource group per environment (dev, test, prod):
 ```powershell
 # Set variables for convenience
 $SUBSCRIPTION_ID = (az account show --query id -o tsv)
-$LOCATION = "westus2"  # Change to your preferred region
+$LOCATION = "swedencentral"  # Change to your preferred region
 
 # Create dev resource group
 az group create `
@@ -141,7 +141,7 @@ az group list --query "[].name" -o table
 ```bash
 # Set variables for convenience
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-LOCATION="westus2"  # Change to your preferred region
+LOCATION="swedencentral"  # Change to your preferred region
 
 # Create dev resource group
 az group create \
@@ -462,7 +462,7 @@ Go to **Settings → Secrets and variables → Actions**, then add variables to 
 AZURE_CLIENT_ID: <from step 1 of GitHub OIDC Federation Setup>
 AZURE_TENANT_ID: <from step 1 of GitHub OIDC Federation Setup>
 AZURE_SUBSCRIPTION_ID: <your subscription ID from az account show>
-TF_LOCATION: westus2  (or your region)
+TF_LOCATION: swedencentral
 TF_NAME_PREFIX: acafd  (or your naming prefix)
 ```
 

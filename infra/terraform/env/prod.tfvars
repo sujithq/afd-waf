@@ -1,4 +1,4 @@
-location = "westeurope"
+location = "swedencentral"
 environment = "prod"
 name_prefix = "acafd"
 waf_mode = "Prevention"

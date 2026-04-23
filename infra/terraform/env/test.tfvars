@@ -1,4 +1,4 @@
-location = "westeurope"
+location = "swedencentral"
 environment = "test"
 name_prefix = "acafd"
 waf_mode = "Detection"

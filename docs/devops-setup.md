@@ -81,7 +81,7 @@ GitHub OpenID Connect (OIDC) eliminates the need for long-lived Azure credential
 - AZURE_RESOURCE_GROUP: Resource group used by the infra and config deployment workflows.
 - AFD_BASE_URL: Base URL used by smoke tests, for example https://contoso.azurefd.net.
 - WAF_POLICY_NAME: Front Door WAF policy name used by config deploy and rollback workflows.
-- TF_LOCATION: Terraform deployment location, for example westus2.
+- TF_LOCATION: Terraform deployment location, for example swedencentral.
 - TF_NAME_PREFIX: Terraform naming prefix, for example acafd.
 - APIM_PUBLISHER_EMAIL: APIM publisher email used by Terraform deployment.
 - APIM_PUBLISHER_NAME: APIM publisher name used by Terraform deployment.
