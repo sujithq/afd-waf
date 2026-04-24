@@ -400,42 +400,45 @@ az ad app federated-credential list --id "$APP_ID"
 
 Grant the service principal only the roles it needs per environment (least privilege).
 
+> **Note on resource group names**: Terraform creates resource groups named `${TF_NAME_PREFIX}-${environment}-rg` (e.g. `acafd-dev-rg`). Role assignments must target those names, **not** the manually created `afd-waf-*-rg` groups. For DEV, Terraform also creates the resource group itself, so the assignment must be at **subscription scope**.
+
 **PowerShell**:
 ```powershell
 # Get the service principal object ID
 $SP_OBJECT_ID = (az ad sp show --id $CLIENT_ID --query id -o tsv)
+$NAME_PREFIX = "acafd"  # must match TF_NAME_PREFIX / name_prefix in dev.tfvars
 
-# For DEV: Broad access for testing
+# For DEV: Subscription scope — Terraform creates the resource group
 az role assignment create `
   --assignee-object-id $SP_OBJECT_ID `
   --assignee-principal-type ServicePrincipal `
   --role "Contributor" `
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-dev-rg"
+  --scope "/subscriptions/$SUBSCRIPTION_ID"
 
-# For TEST: Restricted to necessary roles
+# For TEST: Restricted to necessary roles (resource group must already exist)
 az role assignment create `
   --assignee-object-id $SP_OBJECT_ID `
   --assignee-principal-type ServicePrincipal `
   --role "CDN Profile Contributor" `
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-test-rg"
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NAME_PREFIX-test-rg"
 
 az role assignment create `
   --assignee-object-id $SP_OBJECT_ID `
   --assignee-principal-type ServicePrincipal `
   --role "API Management Service Contributor" `
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-test-rg"
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NAME_PREFIX-test-rg"
 
 # For PROD: Minimal + approval gates (enforced in GitHub)
 az role assignment create `
   --assignee-object-id $SP_OBJECT_ID `
   --assignee-principal-type ServicePrincipal `
   --role "CDN Profile Contributor" `
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-prod-rg"
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NAME_PREFIX-prod-rg"
 
 # Verify role assignments
 az role assignment list `
   --assignee-object-id $SP_OBJECT_ID `
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-prod-rg" `
+  --scope "/subscriptions/$SUBSCRIPTION_ID" `
   --include-inherited `
   --output table
 
@@ -447,38 +450,39 @@ az role assignment list `
 ```bash
 # Get the service principal object ID
 SP_OBJECT_ID=$(az ad sp show --id "$CLIENT_ID" --query id -o tsv)
+NAME_PREFIX="acafd"  # must match TF_NAME_PREFIX / name_prefix in dev.tfvars
 
-# For DEV: Broad access for testing
+# For DEV: Subscription scope — Terraform creates the resource group
 az role assignment create \
   --assignee-object-id "$SP_OBJECT_ID" \
   --assignee-principal-type ServicePrincipal \
   --role "Contributor" \
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-dev-rg"
+  --scope "/subscriptions/$SUBSCRIPTION_ID"
 
-# For TEST: Restricted to necessary roles
+# For TEST: Restricted to necessary roles (resource group must already exist)
 az role assignment create \
   --assignee-object-id "$SP_OBJECT_ID" \
   --assignee-principal-type ServicePrincipal \
   --role "CDN Profile Contributor" \
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-test-rg"
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NAME_PREFIX-test-rg"
 
 az role assignment create \
   --assignee-object-id "$SP_OBJECT_ID" \
   --assignee-principal-type ServicePrincipal \
   --role "API Management Service Contributor" \
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-test-rg"
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NAME_PREFIX-test-rg"
 
 # For PROD: Minimal + approval gates (enforced in GitHub)
 az role assignment create \
   --assignee-object-id "$SP_OBJECT_ID" \
   --assignee-principal-type ServicePrincipal \
   --role "CDN Profile Contributor" \
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-prod-rg"
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NAME_PREFIX-prod-rg"
 
 # Verify role assignments
 az role assignment list \
   --assignee-object-id "$SP_OBJECT_ID" \
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-prod-rg" \
+  --scope "/subscriptions/$SUBSCRIPTION_ID" \
   --include-inherited \
   --output table
 
@@ -826,9 +830,12 @@ cat scripts/export-waf-evidence.kql
 - **Solution**: Verify federated credentials exist: `az ad app federated-credential list --id <APP_ID>`
 - Ensure subject matches repo in federated credential (e.g., `repo:<ORG>/<REPO>:environment:dev`)
 
-**Issue**: Terraform plan fails with "Contributor role not sufficient"
-- **Solution**: Check role assignments: `az role assignment list --assignee <CLIENT_ID> -o table`
-- Add missing roles for specific resource types
+**Issue**: Terraform apply fails with `AuthorizationFailed` on `Microsoft.Resources/subscriptions/resourceGroups/read`
+- **Cause**: The service principal scope does not cover the resource group name Terraform is trying to read/create. In this repo, Terraform creates `${TF_NAME_PREFIX}-${environment}-rg` (for example, `acafd-dev-rg`).
+- **Solution**: For Terraform deployments that create resource groups, grant `Contributor` at subscription scope:
+  - PowerShell: `az role assignment create --assignee-object-id <SP_OBJECT_ID> --assignee-principal-type ServicePrincipal --role "Contributor" --scope "/subscriptions/<SUBSCRIPTION_ID>"`
+  - Bash: `az role assignment create --assignee-object-id <SP_OBJECT_ID> --assignee-principal-type ServicePrincipal --role "Contributor" --scope "/subscriptions/<SUBSCRIPTION_ID>"`
+- Ensure `TF_NAME_PREFIX` matches your intended naming, then re-run the workflow after RBAC propagation.
 
 **Issue**: Bicep build fails
 - **Solution**: Ensure Bicep CLI >= 0.42.1: `az bicep version`
