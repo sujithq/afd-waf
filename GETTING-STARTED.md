@@ -508,11 +508,13 @@ Create three environments in your GitHub repository for dev, test, and prod.
 
 ### 2. Add GitHub Variables
 
-Add the following **variables** to each environment. Variables are **not** secrets; they're configuration values.
+Add the following **variables**. Variables are **not** secrets; they're configuration values.
 
-Go to **Settings → Secrets and variables → Actions**, then add variables to each environment:
+GitHub supports two scopes for variables:
+- **Repository variables** — set once at repository level, available to all workflows regardless of environment.
+- **Environment variables** — set per environment (`dev`, `test`, `prod`); override a repository variable of the same name when the workflow targets that environment.
 
-**Common to all environments**:
+**Repository variables** (go to **Settings → Secrets and variables → Actions → Variables**, *not* inside an environment):
 ```
 AZURE_CLIENT_ID: <from step 1 of GitHub OIDC Federation Setup>
 AZURE_TENANT_ID: <from step 1 of GitHub OIDC Federation Setup>
@@ -521,7 +523,9 @@ TF_LOCATION: swedencentral
 TF_NAME_PREFIX: acafd  (or your naming prefix)
 ```
 
-**Dev environment only**:
+> **Note — production practice**: Sharing a single app registration and subscription across all environments is fine for this demo repo. In a real-world setup, each environment (`dev`, `test`, `prod`) should have its **own app registration** (its own `AZURE_CLIENT_ID` federated credential), ideally its **own Azure subscription**, and possibly a separate `AZURE_TENANT_ID`. In that case, move `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` from repository variables into each environment's variables instead.
+
+**Dev environment variables** (go to **Settings → Environments → dev → Environment variables**):
 ```
 AZURE_RESOURCE_GROUP: afd-waf-dev-rg
 AFD_BASE_URL: https://afd-dev-<unique-suffix>.azurefd.net  (set after first deployment)
@@ -530,7 +534,7 @@ APIM_PUBLISHER_EMAIL: devops@contoso.com  (your email)
 APIM_PUBLISHER_NAME: Contoso DevOps
 ```
 
-**Test environment only**:
+**Test environment variables** (go to **Settings → Environments → test → Environment variables**):
 ```
 AZURE_RESOURCE_GROUP: afd-waf-test-rg
 AFD_BASE_URL: https://afd-test-<unique-suffix>.azurefd.net
@@ -539,7 +543,7 @@ APIM_PUBLISHER_EMAIL: devops@contoso.com
 APIM_PUBLISHER_NAME: Contoso DevOps
 ```
 
-**Prod environment only**:
+**Prod environment variables** (go to **Settings → Environments → prod → Environment variables**):
 ```
 AZURE_RESOURCE_GROUP: afd-waf-prod-rg
 AFD_BASE_URL: https://afd-prod-<unique-suffix>.azurefd.net
