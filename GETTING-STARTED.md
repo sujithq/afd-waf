@@ -701,28 +701,56 @@ The deployment will:
 
 ### 5. Capture Outputs
 
-After deployment, capture the AFD base URL:
+After deployment, capture the AFD base URL.
+
+For Terraform deployments, do not use `az deployment group show` (there may be no ARM deployment name to query). Instead, query the AFD endpoint directly.
 
 **PowerShell**:
 ```powershell
-# From deployment outputs or Azure portal
-$AFD_BASE_URL = (az deployment group show `
-  --resource-group afd-waf-dev-rg `
-  --name main `
-  --query 'properties.outputs.frontDoorFqdn.value' -o tsv)
+# Terraform path: query AFD endpoint directly (recommended)
+# Reuse naming prefix from earlier steps (or set explicitly)
+$NAME_PREFIX = "acafd"  # must match TF_NAME_PREFIX / name_prefix in dev.tfvars
+$ENVIRONMENT = "dev"
+$DEV_RESOURCE_GROUP = "$NAME_PREFIX-dev-rg"
+$AFD_PROFILE_NAME = "$NAME_PREFIX-afd-$ENVIRONMENT"
+$AFD_ENDPOINT_NAME = "$NAME_PREFIX-ep-$ENVIRONMENT"
+
+$AFD_HOSTNAME = (az afd endpoint show `
+  --resource-group $DEV_RESOURCE_GROUP `
+  --profile-name $AFD_PROFILE_NAME `
+  --endpoint-name $AFD_ENDPOINT_NAME `
+  --query hostName -o tsv)
+
+$AFD_BASE_URL = "https://$AFD_HOSTNAME"
 
 Write-Host "AFD Base URL: $AFD_BASE_URL"
+
+# Bicep-only alternative (if you deployed with bicep and know deployment name):
+# $AFD_HOSTNAME = az deployment group show --resource-group $DEV_RESOURCE_GROUP --name main --query 'properties.outputs.frontDoorFqdn.value' -o tsv
 ```
 
 **Bash**:
 ```bash
-# From deployment outputs or Azure portal
-AFD_BASE_URL=$(az deployment group show \
-  --resource-group afd-waf-dev-rg \
-  --name main \
-  --query 'properties.outputs.frontDoorFqdn.value' -o tsv)
+# Terraform path: query AFD endpoint directly (recommended)
+# Reuse naming prefix from earlier steps (or set explicitly)
+NAME_PREFIX="acafd"  # must match TF_NAME_PREFIX / name_prefix in dev.tfvars
+ENVIRONMENT="dev"
+DEV_RESOURCE_GROUP="${NAME_PREFIX}-dev-rg"
+AFD_PROFILE_NAME="${NAME_PREFIX}-afd-${ENVIRONMENT}"
+AFD_ENDPOINT_NAME="${NAME_PREFIX}-ep-${ENVIRONMENT}"
+
+AFD_HOSTNAME=$(az afd endpoint show \
+  --resource-group "$DEV_RESOURCE_GROUP" \
+  --profile-name "$AFD_PROFILE_NAME" \
+  --endpoint-name "$AFD_ENDPOINT_NAME" \
+  --query hostName -o tsv)
+
+AFD_BASE_URL="https://${AFD_HOSTNAME}"
 
 echo "AFD Base URL: $AFD_BASE_URL"
+
+# Bicep-only alternative (if you deployed with bicep and know deployment name):
+# AFD_HOSTNAME=$(az deployment group show --resource-group "$DEV_RESOURCE_GROUP" --name main --query 'properties.outputs.frontDoorFqdn.value' -o tsv)
 ```
 
 Update the `AFD_BASE_URL` variable in your GitHub dev environment with this value.
@@ -738,9 +766,9 @@ Test that AFD routes to APIM and returns a 200 response:
 **PowerShell**:
 ```powershell
 # From repo root
+# Reuse $AFD_BASE_URL captured in the previous step
 powershell -File scripts/smoke-odata.ps1 `
-  -AfdBaseUrl "https://afd-dev-xxxx.azurefd.net" `
-  -Environment dev
+  -BaseUrl $AFD_BASE_URL
 
 # Expected output: 
 # Testing OData queries against AFD...
@@ -748,12 +776,12 @@ powershell -File scripts/smoke-odata.ps1 `
 # GET /api2/odata?$orderby=id ... 200 OK
 ```
 
-**Bash** (if script is adapted to bash):
+**Bash**:
 ```bash
 # From repo root
-bash scripts/smoke-odata.ps1 \
-  --afd-base-url "https://afd-dev-xxxx.azurefd.net" \
-  --environment dev
+# Reuse $AFD_BASE_URL captured in the previous step
+pwsh -File scripts/smoke-odata.ps1 \
+  -BaseUrl "$AFD_BASE_URL"
 ```
 
 ### 2. Verify WAF is Active
