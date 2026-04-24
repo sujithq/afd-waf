@@ -43,6 +43,31 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Ensure Terraform backend
+        if: inputs.iac == 'terraform'
+        run: |
+          az group create \
+            --name ${{ vars.TF_BACKEND_RG }} \
+            --location ${{ vars.TF_LOCATION }} \
+            --only-show-errors 2>/dev/null || true
+          if ! az storage account show \
+              --name ${{ vars.TF_BACKEND_SA }} \
+              --resource-group ${{ vars.TF_BACKEND_RG }} \
+              --only-show-errors &>/dev/null; then
+            az storage account create \
+              --name ${{ vars.TF_BACKEND_SA }} \
+              --resource-group ${{ vars.TF_BACKEND_RG }} \
+              --location ${{ vars.TF_LOCATION }} \
+              --sku Standard_LRS \
+              --allow-shared-key-access false \
+              --only-show-errors
+          fi
+          az storage container create \
+            --name tfstate \
+            --account-name ${{ vars.TF_BACKEND_SA }} \
+            --auth-mode login \
+            --only-show-errors 2>/dev/null || true
+
       - name: Deploy bicep
         if: inputs.iac == 'bicep'
         run: |
@@ -73,6 +98,13 @@ jobs:
             -backend-config="container_name=tfstate" \
             -backend-config="use_azuread_auth=true" \
             -backend-config="key=${{ inputs.environment }}-infra.tfstate"
+          RG_NAME="${TF_VAR_name_prefix}-${TF_VAR_environment}-rg"
+          if az group show --name "$RG_NAME" &>/dev/null; then
+            if ! terraform state show azurerm_resource_group.main &>/dev/null; then
+              terraform import azurerm_resource_group.main \
+                "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$RG_NAME"
+            fi
+          fi
           terraform apply -auto-approve -input=false
           echo "--- Infra outputs (pass to config-deploy) ---"
           terraform output -json | jq '{waf_policy_id: .waf_policy_id.value, waf_policy_name: .waf_policy_name.value}'
