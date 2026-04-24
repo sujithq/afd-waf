@@ -1,3 +1,26 @@
+# ============================================================================
+# DEPRECATED: This script is no longer the recommended way to deploy WAF config
+# ============================================================================
+# WAF configuration is now managed through Terraform IaC.
+# This script is kept for reference and emergency fallback scenarios only.
+#
+# RECOMMENDED APPROACH:
+# 1. Update config/waf/{environment}/exclusions.json or rule-overrides.json
+# 2. Run the "Infra Deploy" workflow with iac=terraform
+# 3. Terraform will read the JSON files and apply changes to the WAF policy
+#
+# This approach provides:
+# - Infrastructure as Code benefits (version control, drift detection)
+# - Declarative configuration management
+# - Integration with Terraform state
+# - No out-of-band imperative updates
+#
+# Only use this script if:
+# - You need an emergency rollback outside of Terraform
+# - Terraform state is corrupted and you need immediate mitigation
+# - You are migrating from script-based to IaC approach
+# ============================================================================
+
 Param(
   [ValidateSet("dev", "test", "prod")]
   [string]$Environment,
@@ -13,6 +36,15 @@ Param(
 )
 
 $ErrorActionPreference = "Stop"
+
+Write-Warning "=========================================="
+Write-Warning "DEPRECATION NOTICE"
+Write-Warning "=========================================="
+Write-Warning "This script is deprecated. Please use Terraform to manage WAF configuration."
+Write-Warning "See the script header for recommended approach."
+Write-Warning "Continuing in 5 seconds..."
+Write-Warning "=========================================="
+Start-Sleep -Seconds 5
 
 Write-Host "Applying WAF config for environment: $Environment in mode: $Mode"
 

@@ -11,6 +11,7 @@ module "waf" {
   name_prefix         = var.name_prefix
   environment         = var.environment
   waf_mode            = var.waf_mode
+  waf_config_path     = "${path.root}/../../config/waf/${var.environment}"
 }
 
 module "apim" {

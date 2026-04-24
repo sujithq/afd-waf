@@ -38,7 +38,7 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
    ```bash
    # Validate Bicep
    az bicep build --file infra/bicep/main.bicep
-   
+
    # Validate Terraform
    cd infra/terraform
    terraform init
@@ -51,20 +51,43 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
    - Review CI outputs and lock file diff
    - Merge when all checks pass
 
-4. **Deploy infra to dev** (manual trigger):
-   - Run Infra Deploy workflow targeting dev environment
+4. **Deploy infrastructure and WAF configuration** (manual trigger):
+   - Run Infra Deploy workflow targeting dev environment with iac=terraform
    - Workflow uses OIDC to authenticate (no secrets in logs)
-   - Terraform and Bicep deployments tracked in Azure activity log
+   - Terraform reads WAF config from `config/waf/{environment}/` JSON files
+   - Infrastructure and WAF policy deployed together in single apply
+   - Terraform state tracks both infrastructure and WAF configuration
 
-5. **Deploy WAF config** (after infra is stable):
-   - Commit config/waf changes
-   - Infra Validate checks schema and policy guardrails
-   - Config Deploy runs in **Detection mode** first (safe to test)
-   - Monitor AFD WAF logs for tuning effectiveness
-   - Manually approve promotion to Prevention mode
+5. **Update WAF configuration** (after initial deployment):
+   - Edit `config/waf/{environment}/exclusions.json` or `rule-overrides.json`
+   - Push changes and open PR
+   - Config Validate workflow checks schema and policy guardrails
+   - Run Infra Deploy workflow with iac=terraform to apply config changes
+   - Terraform detects configuration drift and applies only WAF policy updates
+   - No need to re-provision base infrastructure (AFD, APIM remain unchanged)
 
 6. **Smoke test and evidence collection**:
    - Run `scripts/smoke-odata.ps1` against AFD hostname to generate test traffic
    - Export WAF evidence using KQL template in `scripts/export-waf-evidence.kql`
    - Use findings to refine exclusions in next iteration
+
+## Deployment Model
+
+This repository uses a **unified IaC approach** where both infrastructure provisioning and WAF configuration are managed through Terraform:
+
+- **Infrastructure components** (AFD, APIM, WAF policy resource): Defined in Terraform modules
+- **WAF configuration** (exclusions, rule overrides): Stored as JSON in `config/waf/`, read by Terraform
+- **Single deployment workflow**: Infra Deploy workflow handles both infrastructure and configuration
+- **Declarative updates**: Changes to WAF config JSON files trigger Terraform to update only affected resources
+
+**Benefits:**
+- Terraform state tracks all changes (no out-of-band updates)
+- WAF config changes deployable independently (Terraform applies minimal diff)
+- Version control for all configuration
+- Drift detection between desired (JSON) and actual (Azure) state
+
+**Legacy script-based approach (DEPRECATED):**
+- `scripts/deploy-config.ps1` and Config Deploy workflow are deprecated
+- Kept for reference and emergency fallback only
+- New deployments should use Terraform exclusively
 

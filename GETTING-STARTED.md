@@ -853,9 +853,14 @@ After successful dev deployment:
 
 1. **Deploy to test and prod** using the same Infra Deploy workflow (select different environments)
 2. **Update WAF config** by modifying `config/waf/dev/exclusions.json` with OData-specific rules
-3. **Run config-deploy** workflow in Detection mode to test tuning
+3. **Run Infra Deploy workflow** with iac=terraform to apply WAF config changes
+   - Terraform reads the updated JSON files and applies changes to WAF policy
+   - Only the WAF policy is updated; other infrastructure remains unchanged
+   - Terraform state tracks all configuration changes
 4. **Review WAF evidence** using the KQL template to measure false-positive reduction
-5. **Promote to Prevention mode** after manual approval
+5. **Update waf_mode** in tfvars and redeploy to promote to Prevention mode after validation
+
+**Note:** The previous script-based config deployment (Config Deploy workflow and deploy-config.ps1) is now deprecated. All WAF configuration is managed through Terraform IaC for better version control, drift detection, and declarative management.
 
 For detailed operational guidance, see:
 - [docs/architecture.md](docs/architecture.md) - System design

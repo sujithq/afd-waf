@@ -1,4 +1,14 @@
-name: Config Deploy
+# DEPRECATED: This workflow is no longer used.
+# WAF configuration is now deployed via IaC through the infra-deploy.yml workflow.
+# Changes to config/waf/** files are automatically applied when running Terraform.
+# This workflow and the deploy-config.ps1 script are kept for reference only.
+#
+# To deploy WAF configuration changes:
+# 1. Update config/waf/{environment}/exclusions.json or rule-overrides.json
+# 2. Run the "Infra Deploy" workflow with iac=terraform
+# 3. Terraform will read the JSON files and apply changes to the WAF policy
+
+name: Config Deploy (DEPRECATED)
 
 on:
   workflow_dispatch:
@@ -23,39 +33,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-
-      - name: Upgrade Azure CLI
+      - name: Deprecation warning
         run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-
-      - name: Azure login
-        uses: Azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Deploy config payload
-        shell: pwsh
-        run: |
-          ./scripts/deploy-config.ps1 `
-            -Environment ${{ inputs.environment }} `
-            -Mode ${{ inputs.mode }} `
-            -SubscriptionId "${{ vars.AZURE_SUBSCRIPTION_ID }}" `
-            -ResourceGroup "${{ vars.AZURE_RESOURCE_GROUP }}" `
-            -WafPolicyName "${{ vars.WAF_POLICY_NAME }}"
-
-      - name: Smoke test
-        if: inputs.environment == 'dev' || inputs.environment == 'test'
-        shell: pwsh
-        run: |
-          ./scripts/smoke-odata.ps1 -BaseUrl "${{ vars.AFD_BASE_URL }}"
-
-      - name: Publish config manifest
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: waf-config-manifest-${{ inputs.environment }}
-          path: waf-config-manifest-${{ inputs.environment }}.json
+          echo "::warning::This workflow is deprecated. Use 'Infra Deploy' with iac=terraform instead."
+          echo "::warning::WAF configuration is now managed through Terraform IaC."
+          exit 1
