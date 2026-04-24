@@ -231,6 +231,13 @@ Set these once and reuse them in all OIDC subject strings:
 ```powershell
 $GITHUB_ORG = "<YOUR_GITHUB_ORG>"
 $GITHUB_REPO = "<YOUR_REPO>"
+
+# Quick sanity check
+Write-Host "GITHUB_ORG=$GITHUB_ORG"
+Write-Host "GITHUB_REPO=$GITHUB_REPO"
+if ([string]::IsNullOrWhiteSpace($GITHUB_ORG) -or [string]::IsNullOrWhiteSpace($GITHUB_REPO)) {
+  throw "Set both GITHUB_ORG and GITHUB_REPO before creating federated credentials."
+}
 ```
 
 **Bash**:
@@ -295,7 +302,7 @@ GitHub OIDC federation requires a federated credential per environment or branch
 @{
   name      = "afd-waf-github-dev"
   issuer    = "https://token.actions.githubusercontent.com"
-  subject   = "repo:$GITHUB_ORG/$GITHUB_REPO:environment:dev"
+  subject   = "repo:${GITHUB_ORG}/${GITHUB_REPO}:environment:dev"
   audiences = @("api://AzureADTokenExchange")
 } | ConvertTo-Json | Out-File "$env:TEMP\fic.json" -Encoding utf8
 az ad app federated-credential create --id $APP_ID --parameters "@$env:TEMP\fic.json"
@@ -304,7 +311,7 @@ az ad app federated-credential create --id $APP_ID --parameters "@$env:TEMP\fic.
 @{
   name      = "afd-waf-github-test"
   issuer    = "https://token.actions.githubusercontent.com"
-  subject   = "repo:$GITHUB_ORG/$GITHUB_REPO:environment:test"
+  subject   = "repo:${GITHUB_ORG}/${GITHUB_REPO}:environment:test"
   audiences = @("api://AzureADTokenExchange")
 } | ConvertTo-Json | Out-File "$env:TEMP\fic.json" -Encoding utf8
 az ad app federated-credential create --id $APP_ID --parameters "@$env:TEMP\fic.json"
@@ -313,7 +320,7 @@ az ad app federated-credential create --id $APP_ID --parameters "@$env:TEMP\fic.
 @{
   name      = "afd-waf-github-prod"
   issuer    = "https://token.actions.githubusercontent.com"
-  subject   = "repo:$GITHUB_ORG/$GITHUB_REPO:environment:prod"
+  subject   = "repo:${GITHUB_ORG}/${GITHUB_REPO}:environment:prod"
   audiences = @("api://AzureADTokenExchange")
 } | ConvertTo-Json | Out-File "$env:TEMP\fic.json" -Encoding utf8
 az ad app federated-credential create --id $APP_ID --parameters "@$env:TEMP\fic.json"
@@ -322,7 +329,7 @@ az ad app federated-credential create --id $APP_ID --parameters "@$env:TEMP\fic.
 @{
   name      = "afd-waf-github-main"
   issuer    = "https://token.actions.githubusercontent.com"
-  subject   = "repo:$GITHUB_ORG/$GITHUB_REPO:ref:refs/heads/main"
+  subject   = "repo:${GITHUB_ORG}/${GITHUB_REPO}:ref:refs/heads/main"
   audiences = @("api://AzureADTokenExchange")
 } | ConvertTo-Json | Out-File "$env:TEMP\fic.json" -Encoding utf8
 az ad app federated-credential create --id $APP_ID --parameters "@$env:TEMP\fic.json"
