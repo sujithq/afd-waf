@@ -521,6 +521,8 @@ AZURE_TENANT_ID: <from step 1 of GitHub OIDC Federation Setup>
 AZURE_SUBSCRIPTION_ID: <your subscription ID from az account show>
 TF_LOCATION: swedencentral
 TF_NAME_PREFIX: acafd  (or your naming prefix)
+APIM_PUBLISHER_EMAIL: devops@contoso.com  (your email)
+APIM_PUBLISHER_NAME: Contoso DevOps
 ```
 
 > **Note — production practice**: Sharing a single app registration and subscription across all environments is fine for this demo repo. In a real-world setup, each environment (`dev`, `test`, `prod`) should have its **own app registration** (its own `AZURE_CLIENT_ID` federated credential), ideally its **own Azure subscription**, and possibly a separate `AZURE_TENANT_ID`. In that case, move `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` from repository variables into each environment's variables instead.
@@ -530,8 +532,6 @@ TF_NAME_PREFIX: acafd  (or your naming prefix)
 AZURE_RESOURCE_GROUP: afd-waf-dev-rg
 AFD_BASE_URL: https://afd-dev-<unique-suffix>.azurefd.net  (set after first deployment)
 WAF_POLICY_NAME: afd-waf-dev-policy
-APIM_PUBLISHER_EMAIL: devops@contoso.com  (your email)
-APIM_PUBLISHER_NAME: Contoso DevOps
 ```
 
 **Test environment variables** (go to **Settings → Environments → test → Environment variables**):
@@ -539,8 +539,6 @@ APIM_PUBLISHER_NAME: Contoso DevOps
 AZURE_RESOURCE_GROUP: afd-waf-test-rg
 AFD_BASE_URL: https://afd-test-<unique-suffix>.azurefd.net
 WAF_POLICY_NAME: afd-waf-test-policy
-APIM_PUBLISHER_EMAIL: devops@contoso.com
-APIM_PUBLISHER_NAME: Contoso DevOps
 ```
 
 **Prod environment variables** (go to **Settings → Environments → prod → Environment variables**):
@@ -548,8 +546,6 @@ APIM_PUBLISHER_NAME: Contoso DevOps
 AZURE_RESOURCE_GROUP: afd-waf-prod-rg
 AFD_BASE_URL: https://afd-prod-<unique-suffix>.azurefd.net
 WAF_POLICY_NAME: afd-waf-prod-policy
-APIM_PUBLISHER_EMAIL: devops@contoso.com
-APIM_PUBLISHER_NAME: Contoso DevOps
 ```
 
 ### 3. Verify No Secrets Are Needed
