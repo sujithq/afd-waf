@@ -525,9 +525,13 @@ AZURE_TENANT_ID: <from step 1 of GitHub OIDC Federation Setup>
 AZURE_SUBSCRIPTION_ID: <your subscription ID from az account show>
 TF_LOCATION: swedencentral
 TF_NAME_PREFIX: acafd  (or your naming prefix)
+TF_BACKEND_RG: <resource group that contains your Terraform state storage account>
+TF_BACKEND_SA: <storage account name used for Terraform state>
 APIM_PUBLISHER_EMAIL: devops@contoso.com  (your email)
 APIM_PUBLISHER_NAME: Contoso DevOps
 ```
+
+> **Required for Infra Deploy (terraform)**: `TF_BACKEND_RG` and `TF_BACKEND_SA` must be set, otherwise `terraform init` fails with backend errors such as missing `resource_group_name`.
 
 > **Note — production practice**: Sharing a single app registration and subscription across all environments is fine for this demo repo. In a real-world setup, each environment (`dev`, `test`, `prod`) should have its **own app registration** (its own `AZURE_CLIENT_ID` federated credential), ideally its **own Azure subscription**, and possibly a separate `AZURE_TENANT_ID`. In that case, move `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` from repository variables into each environment's variables instead.
 
@@ -586,7 +590,7 @@ rm main.json
 cd ../terraform
 
 # Initialize Terraform (downloads providers and modules)
-terraform init
+terraform init -backend=false
 
 # Validate configuration
 terraform validate
@@ -607,7 +611,7 @@ terraform plan --% -var-file=env/dev.tfvars -out=tfplan
 cd ../terraform
 
 # Initialize Terraform (downloads providers and modules)
-terraform init
+terraform init -backend=false
 
 # Validate configuration
 terraform validate
@@ -864,6 +868,15 @@ cat scripts/export-waf-evidence.kql
   - PowerShell: `az role assignment create --assignee-object-id <SP_OBJECT_ID> --assignee-principal-type ServicePrincipal --role "Contributor" --scope "/subscriptions/<SUBSCRIPTION_ID>"`
   - Bash: `az role assignment create --assignee-object-id <SP_OBJECT_ID> --assignee-principal-type ServicePrincipal --role "Contributor" --scope "/subscriptions/<SUBSCRIPTION_ID>"`
 - Ensure `TF_NAME_PREFIX` matches your intended naming, then re-run the workflow after RBAC propagation.
+
+**Issue**: Terraform init fails with `403 KeyBasedAuthenticationNotPermitted` while listing backend blobs
+- **Cause**: The Terraform backend is trying key-based auth against a storage account that has shared key access disabled.
+- **Solution**:
+  - Ensure Infra Deploy uses Azure AD auth for backend init (`use_azuread_auth=true`).
+  - Grant backend data-plane access on the state storage account:
+    - PowerShell: `az role assignment create --assignee-object-id <SP_OBJECT_ID> --assignee-principal-type ServicePrincipal --role "Storage Blob Data Contributor" --scope "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<TF_BACKEND_RG>/providers/Microsoft.Storage/storageAccounts/<TF_BACKEND_SA>"`
+    - Bash: `az role assignment create --assignee-object-id <SP_OBJECT_ID> --assignee-principal-type ServicePrincipal --role "Storage Blob Data Contributor" --scope "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<TF_BACKEND_RG>/providers/Microsoft.Storage/storageAccounts/<TF_BACKEND_SA>"`
+  - Re-run Infra Deploy after RBAC propagation.
 
 **Issue**: Bicep build fails
 - **Solution**: Ensure Bicep CLI >= 0.42.1: `az bicep version`

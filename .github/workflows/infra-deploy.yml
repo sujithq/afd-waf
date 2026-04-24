@@ -71,6 +71,7 @@ jobs:
             -backend-config="resource_group_name=${{ vars.TF_BACKEND_RG }}" \
             -backend-config="storage_account_name=${{ vars.TF_BACKEND_SA }}" \
             -backend-config="container_name=tfstate" \
+            -backend-config="use_azuread_auth=true" \
             -backend-config="key=${{ inputs.environment }}-infra.tfstate"
           terraform apply -auto-approve -input=false
           echo "--- Infra outputs (pass to config-deploy) ---"
