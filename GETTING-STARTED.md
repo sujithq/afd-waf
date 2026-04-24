@@ -675,8 +675,8 @@ git push --set-upstream origin feat/initial-setup
 
 ### 3. Wait for CI Validation
 
-The **Infra Validate** workflow should trigger automatically:
-- Check that all GitHub Actions succeed (lint, Bicep build, Terraform validate, what-if)
+The **Infra Validate** workflow triggers automatically for pull requests that change `infra/**` or `scripts/check-avm-versions.ps1`.
+- Check that Infra Validate succeeds (Bicep build, Terraform fmt/validate, AVM governance marker check)
 - Review the workflow logs for any errors
 - If all pass, you're ready to deploy
 
