@@ -273,41 +273,43 @@ GitHub OIDC federation requires a federated credential per environment or branch
 
 **PowerShell**:
 ```powershell
+# Azure CLI cannot parse multi-line JSON from PowerShell inline; write JSON to a temp file
+
 # For dev environment
-$devCred = @{
-    name       = "afd-waf-github-dev"
-    issuer     = "https://token.actions.githubusercontent.com"
-    subject    = "repo:<YOUR_GITHUB_ORG>/<YOUR_REPO>:environment:dev"
-    audiences  = @("api://AzureADTokenExchange")
-}
-az ad app federated-credential create --id $APP_ID --parameters ($devCred | ConvertTo-Json)
+@{
+  name      = "afd-waf-github-dev"
+  issuer    = "https://token.actions.githubusercontent.com"
+  subject   = "repo:<YOUR_GITHUB_ORG>/<YOUR_REPO>:environment:dev"
+  audiences = @("api://AzureADTokenExchange")
+} | ConvertTo-Json | Out-File "$env:TEMP\fic.json" -Encoding utf8
+az ad app federated-credential create --id $APP_ID --parameters "@$env:TEMP\fic.json"
 
 # For test environment
-$testCred = @{
-    name       = "afd-waf-github-test"
-    issuer     = "https://token.actions.githubusercontent.com"
-    subject    = "repo:<YOUR_GITHUB_ORG>/<YOUR_REPO>:environment:test"
-    audiences  = @("api://AzureADTokenExchange")
-}
-az ad app federated-credential create --id $APP_ID --parameters ($testCred | ConvertTo-Json)
+@{
+  name      = "afd-waf-github-test"
+  issuer    = "https://token.actions.githubusercontent.com"
+  subject   = "repo:<YOUR_GITHUB_ORG>/<YOUR_REPO>:environment:test"
+  audiences = @("api://AzureADTokenExchange")
+} | ConvertTo-Json | Out-File "$env:TEMP\fic.json" -Encoding utf8
+az ad app federated-credential create --id $APP_ID --parameters "@$env:TEMP\fic.json"
 
 # For prod environment
-$prodCred = @{
-    name       = "afd-waf-github-prod"
-    issuer     = "https://token.actions.githubusercontent.com"
-    subject    = "repo:<YOUR_GITHUB_ORG>/<YOUR_REPO>:environment:prod"
-    audiences  = @("api://AzureADTokenExchange")
-}
-az ad app federated-credential create --id $APP_ID --parameters ($prodCred | ConvertTo-Json)
+@{
+  name      = "afd-waf-github-prod"
+  issuer    = "https://token.actions.githubusercontent.com"
+  subject   = "repo:<YOUR_GITHUB_ORG>/<YOUR_REPO>:environment:prod"
+  audiences = @("api://AzureADTokenExchange")
+} | ConvertTo-Json | Out-File "$env:TEMP\fic.json" -Encoding utf8
+az ad app federated-credential create --id $APP_ID --parameters "@$env:TEMP\fic.json"
 
 # For PR/merge-to-main branch (optional)
-$mainCred = @{
-    name       = "afd-waf-github-main"
-    issuer     = "https://token.actions.githubusercontent.com"
-    subject    = "repo:<YOUR_GITHUB_ORG>/<YOUR_REPO>:ref:refs/heads/main"
-    audiences  = @("api://AzureADTokenExchange")
-}
-az ad app federated-credential create --id $APP_ID --parameters ($mainCred | ConvertTo-Json)
+@{
+  name      = "afd-waf-github-main"
+  issuer    = "https://token.actions.githubusercontent.com"
+  subject   = "repo:<YOUR_GITHUB_ORG>/<YOUR_REPO>:ref:refs/heads/main"
+  audiences = @("api://AzureADTokenExchange")
+} | ConvertTo-Json | Out-File "$env:TEMP\fic.json" -Encoding utf8
+az ad app federated-credential create --id $APP_ID --parameters "@$env:TEMP\fic.json"
 
 # Verify all credentials were created
 az ad app federated-credential list --id $APP_ID
@@ -540,6 +542,7 @@ terraform plan \
   -out=tfplan
 
 # Review the plan output for any unexpected resources
+
 ```
 
 ### 3. Check AVM Governance
