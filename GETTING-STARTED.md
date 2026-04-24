@@ -852,16 +852,39 @@ cat scripts/export-waf-evidence.kql
 After successful dev deployment:
 
 1. **Deploy to test and prod** using the same Infra Deploy workflow (select different environments)
-2. **Update WAF config** by modifying `config/waf/dev/exclusions.json` with OData-specific rules
-3. **Run config-deploy** workflow in Detection mode to test tuning
-4. **Review WAF evidence** using the KQL template to measure false-positive reduction
-5. **Promote to Prevention mode** after manual approval
+
+2. **Run Config Deploy** after every Infra Deploy to apply WAF managed rules:
+   - Trigger the **Config Deploy** workflow manually for the same environment
+   - It imports the WAF policy (by ID derived from naming convention) and applies managed rules from `config/waf/{env}/exclusions.json`
+
+3. **Update WAF config** for future changes:
+   - Modify `config/waf/{env}/exclusions.json` or `rule-overrides.json`
+   - Push changes; Config Validate workflow checks schema and guardrails on PR
+   - Merge to `main` — Config Deploy workflow triggers automatically
+   - Only WAF managed rules are updated; AFD, APIM, and other infrastructure remain untouched
+
+4. **Promote to Prevention mode**:
+   - Update `waf_mode = "Prevention"` in `infra/terraform-config/env/prod.tfvars`
+   - Run Config Deploy workflow for `prod`
+   - The infra stack ignores `mode` changes (it is in `ignore_changes`), so only the WAF policy mode changes; no infrastructure re-provisioning needed
+
+5. **Review WAF evidence** using the KQL template to measure false-positive reduction
+
+**Two-workflow model summary:**
+| Step | Workflow | When to run |
+|---|---|---|
+| Provision/update infrastructure | **Infra Deploy** (`iac=terraform`) | Infrastructure code changes |
+| Apply/update WAF rules | **Config Deploy** | WAF JSON config changes |
+
+**Emergency fallback (script):**
+`scripts/deploy-config.ps1` is available for out-of-band emergency fixes. Use the `-Force` flag to skip the interactive confirmation gate. Always re-run Config Deploy afterwards to bring Terraform state back in sync.
 
 For detailed operational guidance, see:
 - [docs/architecture.md](docs/architecture.md) - System design
 - [docs/devops-setup.md](docs/devops-setup.md) - OIDC and GitHub configuration reference
 - [docs/waf-tuning-governance.md](docs/waf-tuning-governance.md) - Governance and approval flows
 - [docs/runbook-false-positive-triage.md](docs/runbook-false-positive-triage.md) - Operational runbook
+
 
 ---
 

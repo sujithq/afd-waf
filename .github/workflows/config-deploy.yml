@@ -8,11 +8,6 @@ on:
         required: true
         type: choice
         options: [dev, test, prod]
-      mode:
-        description: WAF mode
-        required: true
-        type: choice
-        options: [Detection, Prevention]
 
 permissions:
   contents: read
@@ -27,9 +22,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Upgrade Azure CLI
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: 1.14.9
 
       - name: Azure login
         uses: Azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -38,24 +33,34 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy config payload
-        shell: pwsh
+      - name: Resolve WAF policy details from Azure
         run: |
-          ./scripts/deploy-config.ps1 `
-            -Environment ${{ inputs.environment }} `
-            -Mode ${{ inputs.mode }} `
-            -SubscriptionId "${{ vars.AZURE_SUBSCRIPTION_ID }}" `
-            -ResourceGroup "${{ vars.AZURE_RESOURCE_GROUP }}" `
-            -WafPolicyName "${{ vars.WAF_POLICY_NAME }}"
+          ENV="${{ inputs.environment }}"
+          PREFIX="${{ vars.TF_NAME_PREFIX }}"
+          WAF_NAME=$(echo "${PREFIX}waf${ENV}" | tr '[:upper:]' '[:lower:]' | tr -d '-')
+          RG="${PREFIX}-${ENV}-rg"
+          # Fetch canonical resource ID from Azure to avoid reconstructing ARM path manually
+          WAF_ID=$(az network front-door waf-policy show \
+            --name "$WAF_NAME" \
+            --resource-group "$RG" \
+            --query "id" --output tsv)
+          echo "TF_VAR_waf_policy_name=${WAF_NAME}" >> "$GITHUB_ENV"
+          echo "TF_VAR_resource_group_name=${RG}" >> "$GITHUB_ENV"
+          echo "TF_VAR_waf_policy_id=${WAF_ID}" >> "$GITHUB_ENV"
 
-      - name: Smoke test
-        if: inputs.environment == 'dev' || inputs.environment == 'test'
-        shell: pwsh
+      - name: Deploy WAF config via Terraform
+        env:
+          ARM_USE_OIDC: true
+          ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_environment: ${{ inputs.environment }}
         run: |
-          ./scripts/smoke-odata.ps1 -BaseUrl "${{ vars.AFD_BASE_URL }}"
-
-      - name: Publish config manifest
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: waf-config-manifest-${{ inputs.environment }}
-          path: waf-config-manifest-${{ inputs.environment }}.json
+          cd infra/terraform-config
+          terraform init -upgrade=false \
+            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RG }}" \
+            -backend-config="storage_account_name=${{ vars.TF_BACKEND_SA }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=${{ inputs.environment }}-config.tfstate"
+          terraform apply -auto-approve -input=false \
+            -var-file="env/${{ inputs.environment }}.tfvars"

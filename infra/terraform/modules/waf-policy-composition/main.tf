@@ -1,11 +1,24 @@
-# avm-id: terraform-waf-composition
-module "waf_policy" {
-  source  = "Azure/avm-res-network-frontdoorwebapplicationfirewallpolicy/azurerm"
-  version = "0.1.0"
-
+# Raw azurerm resource (not AVM module) so that lifecycle.ignore_changes can be
+# used to prevent infra-deploy from reverting managed_rule changes that are
+# owned by the config-deploy stack.
+resource "azurerm_cdn_frontdoor_firewall_policy" "waf" {
   name                = lower(replace("${var.name_prefix}waf${var.environment}", "-", ""))
   resource_group_name = var.resource_group_name
   sku_name            = "Premium_AzureFrontDoor"
   mode                = var.waf_mode
-  enable_telemetry    = true
+  enabled             = true
+
+  lifecycle {
+    # managed_rule and custom_rule are owned by the config-deploy stack.
+    # mode and enabled are also owned by the config-deploy stack so that
+    # mode can be promoted (Detection → Prevention) without re-running infra.
+    ignore_changes = [managed_rule, custom_rule, mode, enabled]
+  }
+}
+
+# Migrate state from the previous AVM module wrapper to the direct resource.
+# Without this block an existing deployment would destroy + recreate the WAF policy.
+moved {
+  from = module.waf_policy.azurerm_cdn_frontdoor_firewall_policy.waf_policy
+  to   = azurerm_cdn_frontdoor_firewall_policy.waf
 }

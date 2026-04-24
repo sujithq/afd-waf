@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'infra/**'
+      - 'config/waf/**'
       - 'scripts/check-avm-versions.ps1'
 
 permissions:
@@ -33,6 +34,13 @@ jobs:
       - name: Terraform fmt and validate
         run: |
           cd infra/terraform
+          terraform init -backend=false
+          terraform fmt -check -recursive
+          terraform validate
+
+      - name: Terraform config fmt and validate
+        run: |
+          cd infra/terraform-config
           terraform init -backend=false
           terraform fmt -check -recursive
           terraform validate
