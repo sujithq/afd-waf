@@ -5,8 +5,8 @@
     "environment": { "value": "test" },
     "namePrefix": { "value": "acafd" },
     "afdHostName": { "value": "acafd-test.azurefd.net" },
-    "apimPublisherEmail": { "value": "platform@example.com" },
-    "apimPublisherName": { "value": "Platform Team" },
+    "apimPublisherEmail": { "value": "squintelier@microsoft.com" },
+    "apimPublisherName": { "value": "SujithQ@Microsoft" },
     "wafMode": { "value": "Detection" }
   }
 }

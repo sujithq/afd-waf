@@ -5,3 +5,7 @@
 *.tmp
 *.bak
 *.user
+
+
+main.json
+tfplan

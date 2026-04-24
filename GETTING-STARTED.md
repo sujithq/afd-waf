@@ -576,7 +576,28 @@ rm main.json
 
 ### 2. Validate Terraform
 
-**PowerShell** or **bash**:
+**PowerShell**:
+```powershell
+# Navigate to Terraform directory
+cd ../terraform
+
+# Initialize Terraform (downloads providers and modules)
+terraform init
+
+# Validate configuration
+terraform validate
+
+# Expected output: "Success! The configuration is valid."
+
+# Generate a plan (without applying)
+terraform plan --% -var-file=env/dev.tfvars -out=tfplan
+
+# Review the plan output for any unexpected resources
+# If Terraform then fails with an Azure CLI token error, re-run `az login`
+# and confirm the correct subscription with `az account show`.
+```
+
+**Bash**:
 ```bash
 # Navigate to Terraform directory
 cd ../terraform
@@ -590,9 +611,7 @@ terraform validate
 # Expected output: "Success! The configuration is valid."
 
 # Generate a plan (without applying)
-terraform plan \
-  -var-file=env/dev.tfvars \
-  -out=tfplan
+terraform plan -var-file=env/dev.tfvars -out=tfplan
 
 # Review the plan output for any unexpected resources
 
@@ -636,9 +655,12 @@ Once validation passes, deploy infrastructure to the dev environment.
 # Create and switch to a feature branch
 git checkout -b feat/initial-setup
 
-# Make a minor change to trigger CI (or just push as-is)
+# Make a minor change to trigger CI if needed
 git add .
-git commit -m "Initial setup ready for CI/CD validation" || true
+git status --short
+
+# If you staged changes, commit them
+git commit -m "Initial setup ready for CI/CD validation"
 
 # Push branch to GitHub
 git push --set-upstream origin feat/initial-setup
