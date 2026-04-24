@@ -408,30 +408,39 @@ $SP_OBJECT_ID = (az ad sp show --id $CLIENT_ID --query id -o tsv)
 # For DEV: Broad access for testing
 az role assignment create `
   --assignee-object-id $SP_OBJECT_ID `
+  --assignee-principal-type ServicePrincipal `
   --role "Contributor" `
   --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-dev-rg"
 
 # For TEST: Restricted to necessary roles
 az role assignment create `
   --assignee-object-id $SP_OBJECT_ID `
+  --assignee-principal-type ServicePrincipal `
   --role "CDN Profile Contributor" `
   --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-test-rg"
 
 az role assignment create `
   --assignee-object-id $SP_OBJECT_ID `
+  --assignee-principal-type ServicePrincipal `
   --role "API Management Service Contributor" `
   --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-test-rg"
 
 # For PROD: Minimal + approval gates (enforced in GitHub)
 az role assignment create `
   --assignee-object-id $SP_OBJECT_ID `
+  --assignee-principal-type ServicePrincipal `
   --role "CDN Profile Contributor" `
   --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-prod-rg"
 
 # Verify role assignments
 az role assignment list `
-  --assignee $CLIENT_ID `
+  --assignee-object-id $SP_OBJECT_ID `
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-prod-rg" `
+  --include-inherited `
   --output table
+
+# Note: If you query with --assignee $CLIENT_ID and see no rows, verify $CLIENT_ID is set.
+# For deterministic results, prefer --assignee-object-id with an explicit scope.
 ```
 
 **Bash**:
@@ -442,30 +451,39 @@ SP_OBJECT_ID=$(az ad sp show --id "$CLIENT_ID" --query id -o tsv)
 # For DEV: Broad access for testing
 az role assignment create \
   --assignee-object-id "$SP_OBJECT_ID" \
+  --assignee-principal-type ServicePrincipal \
   --role "Contributor" \
   --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-dev-rg"
 
 # For TEST: Restricted to necessary roles
 az role assignment create \
   --assignee-object-id "$SP_OBJECT_ID" \
+  --assignee-principal-type ServicePrincipal \
   --role "CDN Profile Contributor" \
   --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-test-rg"
 
 az role assignment create \
   --assignee-object-id "$SP_OBJECT_ID" \
+  --assignee-principal-type ServicePrincipal \
   --role "API Management Service Contributor" \
   --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-test-rg"
 
 # For PROD: Minimal + approval gates (enforced in GitHub)
 az role assignment create \
   --assignee-object-id "$SP_OBJECT_ID" \
+  --assignee-principal-type ServicePrincipal \
   --role "CDN Profile Contributor" \
   --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-prod-rg"
 
 # Verify role assignments
 az role assignment list \
-  --assignee "$CLIENT_ID" \
+  --assignee-object-id "$SP_OBJECT_ID" \
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/afd-waf-prod-rg" \
+  --include-inherited \
   --output table
+
+# Note: If you query with --assignee "$CLIENT_ID" and see no rows, verify CLIENT_ID is set.
+# For deterministic results, prefer --assignee-object-id with an explicit scope.
 ```
 
 ---
