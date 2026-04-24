@@ -2,11 +2,6 @@ locals {
   exclusions_json = jsondecode(file("${var.waf_config_path}/exclusions.json"))
   overrides_json  = jsondecode(file("${var.waf_config_path}/rule-overrides.json"))
 
-  # Collect unique rule groups that have at least one exclusion.
-  unique_rule_groups = distinct([
-    for excl in local.exclusions_json.exclusions : excl.ruleGroup
-  ])
-
   # Build a map of rule action overrides keyed by "ruleGroup.ruleId" from rule-overrides.json
   # so they can be merged with exclusion-derived rules below.
   override_map = {
@@ -20,6 +15,25 @@ locals {
     ]) : entry.key => entry.action
   }
 
+  # Collect unique rule groups from BOTH exclusions and overrides so that
+  # entries in rule-overrides.json without a corresponding exclusion are
+  # still applied.
+  unique_rule_groups = distinct(concat(
+    [for excl in local.exclusions_json.exclusions : excl.ruleGroup],
+    [for grp in local.overrides_json.overrides : grp.ruleGroup]
+  ))
+
+  # For each group, collect unique rule IDs from BOTH sources.
+  unique_rules_per_group = {
+    for rule_group in local.unique_rule_groups : rule_group => distinct(concat(
+      [for excl in local.exclusions_json.exclusions : excl.ruleId if excl.ruleGroup == rule_group],
+      flatten([
+        for grp in local.overrides_json.overrides : [for r in grp.rules : r.ruleId]
+        if grp.ruleGroup == rule_group
+      ])
+    ))
+  }
+
   # Build override entries with per-rule exclusions.
   # action defaults to "AnomalyScoring" (correct for DRS 2.1 anomaly-scoring mode)
   # unless explicitly overridden in rule-overrides.json.
@@ -27,10 +41,7 @@ locals {
     for rule_group in local.unique_rule_groups : {
       rule_group_name = rule_group
       rules = [
-        for rule_id in distinct([
-          for excl in local.exclusions_json.exclusions :
-          excl.ruleId if excl.ruleGroup == rule_group
-          ]) : {
+        for rule_id in local.unique_rules_per_group[rule_group] : {
           rule_id = rule_id
           action  = lookup(local.override_map, "${rule_group}.${rule_id}", "AnomalyScoring")
           exclusions = [

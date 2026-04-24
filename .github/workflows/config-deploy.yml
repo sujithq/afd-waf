@@ -8,11 +8,6 @@ on:
         required: true
         type: choice
         options: [dev, test, prod]
-  push:
-    branches: [main]
-    paths:
-      - 'config/waf/**'
-      - 'infra/terraform-config/**'
 
 permissions:
   contents: read
@@ -21,7 +16,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment || 'dev' }}
+    environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -38,14 +33,17 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Derive WAF policy details from naming convention
+      - name: Resolve WAF policy details from Azure
         run: |
-          ENV="${{ inputs.environment || 'dev' }}"
+          ENV="${{ inputs.environment }}"
           PREFIX="${{ vars.TF_NAME_PREFIX }}"
-          # Derive WAF policy name: lowercase(prefix + "waf" + env), hyphens removed
           WAF_NAME=$(echo "${PREFIX}waf${ENV}" | tr '[:upper:]' '[:lower:]' | tr -d '-')
           RG="${PREFIX}-${ENV}-rg"
-          WAF_ID="/subscriptions/${{ vars.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${RG}/providers/Microsoft.Network/FrontDoorWebApplicationFirewallPolicies/${WAF_NAME}"
+          # Fetch canonical resource ID from Azure to avoid reconstructing ARM path manually
+          WAF_ID=$(az network front-door waf-policy show \
+            --name "$WAF_NAME" \
+            --resource-group "$RG" \
+            --query "id" --output tsv)
           echo "TF_VAR_waf_policy_name=${WAF_NAME}" >> "$GITHUB_ENV"
           echo "TF_VAR_resource_group_name=${RG}" >> "$GITHUB_ENV"
           echo "TF_VAR_waf_policy_id=${WAF_ID}" >> "$GITHUB_ENV"
@@ -56,9 +54,13 @@ jobs:
           ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          TF_VAR_environment: ${{ inputs.environment || 'dev' }}
+          TF_VAR_environment: ${{ inputs.environment }}
         run: |
           cd infra/terraform-config
-          terraform init -upgrade=false
+          terraform init -upgrade=false \
+            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RG }}" \
+            -backend-config="storage_account_name=${{ vars.TF_BACKEND_SA }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=${{ inputs.environment }}-config.tfstate"
           terraform apply -auto-approve -input=false \
-            -var-file="env/${{ inputs.environment || 'dev' }}.tfvars"
+            -var-file="env/${{ inputs.environment }}.tfvars"

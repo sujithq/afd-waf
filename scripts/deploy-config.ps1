@@ -6,8 +6,8 @@
 #
 # RECOMMENDED APPROACH:
 # 1. Update config/waf/{environment}/exclusions.json or rule-overrides.json
-# 2. Run the "Infra Deploy" workflow with iac=terraform
-# 3. Terraform will read the JSON files and apply changes to the WAF policy
+# 2. Run the "Config Deploy" workflow for the target environment
+# 3. Terraform will read the JSON files and apply changes to the WAF policy only
 #
 # This approach provides:
 # - Infrastructure as Code benefits (version control, drift detection)

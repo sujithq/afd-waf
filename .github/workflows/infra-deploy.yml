@@ -67,7 +67,11 @@ jobs:
           TF_VAR_apim_publisher_name: ${{ vars.APIM_PUBLISHER_NAME }}
         run: |
           cd infra/terraform
-          terraform init -upgrade=false
+          terraform init -upgrade=false \
+            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RG }}" \
+            -backend-config="storage_account_name=${{ vars.TF_BACKEND_SA }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=${{ inputs.environment }}-infra.tfstate"
           terraform apply -auto-approve -input=false
           echo "--- Infra outputs (pass to config-deploy) ---"
           terraform output -json | jq '{waf_policy_id: .waf_policy_id.value, waf_policy_name: .waf_policy_name.value}'

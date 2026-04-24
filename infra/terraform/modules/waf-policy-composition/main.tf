@@ -9,7 +9,10 @@ resource "azurerm_cdn_frontdoor_firewall_policy" "waf" {
   enabled             = true
 
   lifecycle {
-    ignore_changes = [managed_rule, custom_rule]
+    # managed_rule and custom_rule are owned by the config-deploy stack.
+    # mode and enabled are also owned by the config-deploy stack so that
+    # mode can be promoted (Detection → Prevention) without re-running infra.
+    ignore_changes = [managed_rule, custom_rule, mode, enabled]
   }
 }
 

@@ -84,8 +84,8 @@ This repository uses a **two-stack IaC model** with separate Terraform configura
 | Resource group, WAF policy resource, APIM, AFD | `infra/terraform/` | Infra Deploy |
 | WAF managed rules, exclusions, rule overrides | `infra/terraform-config/` | Config Deploy |
 
-- **Infra stack** (`infra/terraform/`): Provisions all Azure resources. The WAF policy is created bare (no rules). `lifecycle { ignore_changes = [managed_rule_set] }` ensures that config-stack rule changes are never reverted by an infra apply.
-- **Config stack** (`infra/terraform-config/`): Imports the WAF policy by ID and applies `managed_rule_set` blocks built from the JSON files in `config/waf/{env}/`. Runs independently without touching infrastructure.
+- **Infra stack** (`infra/terraform/`): Provisions all Azure resources. The WAF policy is created bare (no rules). `lifecycle { ignore_changes = [managed_rule, custom_rule, mode, enabled] }` ensures that config-stack rule and mode changes are never reverted by an infra apply.
+- **Config stack** (`infra/terraform-config/`): Imports the WAF policy by ID and applies `managed_rule` blocks built from the JSON files in `config/waf/{env}/`. Runs independently without touching infrastructure.
 - **WAF config JSON** (`config/waf/{env}/exclusions.json`, `rule-overrides.json`): Source of truth for rule exclusions and action overrides. Terraform reads these on every config apply.
 
 **Benefits of separation:**

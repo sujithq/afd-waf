@@ -866,7 +866,7 @@ After successful dev deployment:
 4. **Promote to Prevention mode**:
    - Update `waf_mode = "Prevention"` in `infra/terraform-config/env/prod.tfvars`
    - Run Config Deploy workflow for `prod`
-   - Only the WAF policy mode changes; no infrastructure re-provisioning needed
+   - The infra stack ignores `mode` changes (it is in `ignore_changes`), so only the WAF policy mode changes; no infrastructure re-provisioning needed
 
 5. **Review WAF evidence** using the KQL template to measure false-positive reduction
 
