@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'infra/**'
+      - 'config/waf/**'
       - 'scripts/check-avm-versions.ps1'
 
 permissions:
