@@ -67,3 +67,4 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
    - Run `scripts/smoke-odata.ps1` against AFD hostname to generate test traffic
    - Export WAF evidence using KQL template in `scripts/export-waf-evidence.kql`
    - Use findings to refine exclusions in next iteration
+
