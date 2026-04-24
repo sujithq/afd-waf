@@ -51,43 +51,51 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
    - Review CI outputs and lock file diff
    - Merge when all checks pass
 
-4. **Deploy infrastructure and WAF configuration** (manual trigger):
-   - Run Infra Deploy workflow targeting dev environment with iac=terraform
+4. **Deploy infrastructure** (manual trigger — first time or on infra changes):
+   - Run **Infra Deploy** workflow targeting the environment with `iac=terraform`
    - Workflow uses OIDC to authenticate (no secrets in logs)
-   - Terraform reads WAF config from `config/waf/{environment}/` JSON files
-   - Infrastructure and WAF policy deployed together in single apply
-   - Terraform state tracks both infrastructure and WAF configuration
+   - Creates/updates resource group, WAF policy (bare), APIM, and AFD
+   - Terraform state tracks all infrastructure resources
+   - Outputs `waf_policy_id` and `waf_policy_name` for reference
 
-5. **Update WAF configuration** (after initial deployment):
+5. **Deploy WAF configuration** (separate workflow):
+   - Run **Config Deploy** workflow targeting the same environment
+   - Imports the WAF policy created by the infra stack and applies managed rules from JSON
+   - Triggered automatically on pushes to `main` that modify `config/waf/**` or `infra/terraform-config/**`
+   - Config-only changes never touch AFD, APIM, or other infrastructure
+
+6. **Update WAF configuration** (ongoing):
    - Edit `config/waf/{environment}/exclusions.json` or `rule-overrides.json`
-   - Push changes and open PR
-   - Config Validate workflow checks schema and policy guardrails
-   - Run Infra Deploy workflow with iac=terraform to apply config changes
-   - Terraform detects configuration drift and applies only WAF policy updates
-   - No need to re-provision base infrastructure (AFD, APIM remain unchanged)
+   - Push changes and open PR; Config Validate workflow checks schema and guardrails
+   - Merge to `main` — Config Deploy workflow runs automatically
+   - Only the WAF policy managed rules are updated; infrastructure is untouched
 
-6. **Smoke test and evidence collection**:
+7. **Smoke test and evidence collection**:
    - Run `scripts/smoke-odata.ps1` against AFD hostname to generate test traffic
    - Export WAF evidence using KQL template in `scripts/export-waf-evidence.kql`
    - Use findings to refine exclusions in next iteration
 
 ## Deployment Model
 
-This repository uses a **unified IaC approach** where both infrastructure provisioning and WAF configuration are managed through Terraform:
+This repository uses a **two-stack IaC model** with separate Terraform configurations and isolated blast radius:
 
-- **Infrastructure components** (AFD, APIM, WAF policy resource): Defined in Terraform modules
-- **WAF configuration** (exclusions, rule overrides): Stored as JSON in `config/waf/`, read by Terraform
-- **Single deployment workflow**: Infra Deploy workflow handles both infrastructure and configuration
-- **Declarative updates**: Changes to WAF config JSON files trigger Terraform to update only affected resources
+| Responsibility | Terraform stack | Workflow |
+|---|---|---|
+| Resource group, WAF policy resource, APIM, AFD | `infra/terraform/` | Infra Deploy |
+| WAF managed rules, exclusions, rule overrides | `infra/terraform-config/` | Config Deploy |
 
-**Benefits:**
-- Terraform state tracks all changes (no out-of-band updates)
-- WAF config changes deployable independently (Terraform applies minimal diff)
-- Version control for all configuration
-- Drift detection between desired (JSON) and actual (Azure) state
+- **Infra stack** (`infra/terraform/`): Provisions all Azure resources. The WAF policy is created bare (no rules). `lifecycle { ignore_changes = [managed_rule_set] }` ensures that config-stack rule changes are never reverted by an infra apply.
+- **Config stack** (`infra/terraform-config/`): Imports the WAF policy by ID and applies `managed_rule_set` blocks built from the JSON files in `config/waf/{env}/`. Runs independently without touching infrastructure.
+- **WAF config JSON** (`config/waf/{env}/exclusions.json`, `rule-overrides.json`): Source of truth for rule exclusions and action overrides. Terraform reads these on every config apply.
 
-**Legacy script-based approach (DEPRECATED):**
-- `scripts/deploy-config.ps1` and Config Deploy workflow are deprecated
-- Kept for reference and emergency fallback only
-- New deployments should use Terraform exclusively
+**Benefits of separation:**
+- Config changes have isolated blast radius — a broken exclusion cannot affect AFD or APIM
+- Infrastructure and WAF configuration are independently deployable and independently rollbackable
+- Terraform state for each stack is separate and independently manageable
+- Drift detection works per stack; a config drift does not surface as an infra diff
+
+**Legacy script-based approach (fallback only):**
+- `scripts/deploy-config.ps1` is retained as an emergency fallback for out-of-band fixes
+- Pass `-Force` to skip the interactive confirmation gate
+- New deployments should use the Config Deploy workflow exclusively
 

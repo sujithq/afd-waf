@@ -30,13 +30,6 @@
       "pinnedVersion": "0.1.9"
     },
     {
-      "id": "terraform-waf-composition",
-      "stack": "terraform",
-      "file": "infra/terraform/modules/waf-policy-composition/main.tf",
-      "moduleRef": "Azure/avm-res-network-frontdoorwebapplicationfirewallpolicy/azurerm",
-      "pinnedVersion": "0.1.0"
-    },
-    {
       "id": "terraform-apim-composition",
       "stack": "terraform",
       "file": "infra/terraform/modules/apim-composition/main.tf",

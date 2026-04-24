@@ -69,3 +69,5 @@ jobs:
           cd infra/terraform
           terraform init -upgrade=false
           terraform apply -auto-approve -input=false
+          echo "--- Infra outputs (pass to config-deploy) ---"
+          terraform output -json | jq '{waf_policy_id: .waf_policy_id.value, waf_policy_name: .waf_policy_name.value}'

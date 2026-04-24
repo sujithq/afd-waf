@@ -32,7 +32,8 @@ Param(
   [string]$ResourceGroup,
   [Parameter(Mandatory = $true)]
   [string]$WafPolicyName,
-  [string]$ApiVersion = "2022-05-01"
+  [string]$ApiVersion = "2022-05-01",
+  [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,9 +43,15 @@ Write-Warning "DEPRECATION NOTICE"
 Write-Warning "=========================================="
 Write-Warning "This script is deprecated. Please use Terraform to manage WAF configuration."
 Write-Warning "See the script header for recommended approach."
-Write-Warning "Continuing in 5 seconds..."
 Write-Warning "=========================================="
-Start-Sleep -Seconds 5
+
+if (-not $Force) {
+  $answer = Read-Host "Proceed anyway? Type 'yes' to continue or press Enter to abort"
+  if ($answer -ne 'yes') {
+    Write-Host "Aborted."
+    exit 0
+  }
+}
 
 Write-Host "Applying WAF config for environment: $Environment in mode: $Mode"
 

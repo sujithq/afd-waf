@@ -852,21 +852,39 @@ cat scripts/export-waf-evidence.kql
 After successful dev deployment:
 
 1. **Deploy to test and prod** using the same Infra Deploy workflow (select different environments)
-2. **Update WAF config** by modifying `config/waf/dev/exclusions.json` with OData-specific rules
-3. **Run Infra Deploy workflow** with iac=terraform to apply WAF config changes
-   - Terraform reads the updated JSON files and applies changes to WAF policy
-   - Only the WAF policy is updated; other infrastructure remains unchanged
-   - Terraform state tracks all configuration changes
-4. **Review WAF evidence** using the KQL template to measure false-positive reduction
-5. **Update waf_mode** in tfvars and redeploy to promote to Prevention mode after validation
 
-**Note:** The previous script-based config deployment (Config Deploy workflow and deploy-config.ps1) is now deprecated. All WAF configuration is managed through Terraform IaC for better version control, drift detection, and declarative management.
+2. **Run Config Deploy** after every Infra Deploy to apply WAF managed rules:
+   - Trigger the **Config Deploy** workflow manually for the same environment
+   - It imports the WAF policy (by ID derived from naming convention) and applies managed rules from `config/waf/{env}/exclusions.json`
+
+3. **Update WAF config** for future changes:
+   - Modify `config/waf/{env}/exclusions.json` or `rule-overrides.json`
+   - Push changes; Config Validate workflow checks schema and guardrails on PR
+   - Merge to `main` — Config Deploy workflow triggers automatically
+   - Only WAF managed rules are updated; AFD, APIM, and other infrastructure remain untouched
+
+4. **Promote to Prevention mode**:
+   - Update `waf_mode = "Prevention"` in `infra/terraform-config/env/prod.tfvars`
+   - Run Config Deploy workflow for `prod`
+   - Only the WAF policy mode changes; no infrastructure re-provisioning needed
+
+5. **Review WAF evidence** using the KQL template to measure false-positive reduction
+
+**Two-workflow model summary:**
+| Step | Workflow | When to run |
+|---|---|---|
+| Provision/update infrastructure | **Infra Deploy** (`iac=terraform`) | Infrastructure code changes |
+| Apply/update WAF rules | **Config Deploy** | WAF JSON config changes |
+
+**Emergency fallback (script):**
+`scripts/deploy-config.ps1` is available for out-of-band emergency fixes. Use the `-Force` flag to skip the interactive confirmation gate. Always re-run Config Deploy afterwards to bring Terraform state back in sync.
 
 For detailed operational guidance, see:
 - [docs/architecture.md](docs/architecture.md) - System design
 - [docs/devops-setup.md](docs/devops-setup.md) - OIDC and GitHub configuration reference
 - [docs/waf-tuning-governance.md](docs/waf-tuning-governance.md) - Governance and approval flows
 - [docs/runbook-false-positive-triage.md](docs/runbook-false-positive-triage.md) - Operational runbook
+
 
 ---
 
