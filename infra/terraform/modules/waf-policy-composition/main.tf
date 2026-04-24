@@ -7,6 +7,7 @@ locals {
       type    = "Microsoft_DefaultRuleSet"
       version = "2.1"
       action  = "Block"
+      # Map selector_match_operator to the AVM module's required 'operator' field name.
       exclusions = [for e in var.waf_exclusions : {
         match_variable = e.match_variable
         operator       = e.selector_match_operator

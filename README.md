@@ -27,7 +27,7 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
 - PowerShell 7+ (for local helper scripts)
 - GitHub OIDC federated credentials configured (see docs/devops-setup.md for step-by-step setup)
 
-## Deployment flow
+### Deployment flow
 
 1. **Configure OIDC and GitHub variables** (one-time setup):
    - Follow docs/devops-setup.md step-by-step OIDC section
