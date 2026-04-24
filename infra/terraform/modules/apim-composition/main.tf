@@ -21,6 +21,38 @@ module "apim" {
       protocols             = ["https"]
       service_url           = "https://example.com/odata1"
       subscription_required = false
+      operations = {
+        entities = {
+          display_name = "List Entities"
+          method       = "GET"
+          url_template = "/Entities"
+          policy = {
+            xml_content = <<XML
+<policies>
+  <inbound>
+    <base />
+    <return-response>
+      <set-status code="200" reason="OK" />
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+      </set-header>
+      <set-body>{"value":[{"Id":1,"Name":"Alpha"},{"Id":2,"Name":"Iota"}]}</set-body>
+    </return-response>
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>
+XML
+          }
+        }
+      }
     }
     odata2 = {
       name                  = "odata-sap-2"
@@ -31,6 +63,38 @@ module "apim" {
       protocols             = ["https"]
       service_url           = "https://example.com/odata2"
       subscription_required = false
+      operations = {
+        entities = {
+          display_name = "List Entities"
+          method       = "GET"
+          url_template = "/Entities"
+          policy = {
+            xml_content = <<XML
+<policies>
+  <inbound>
+    <base />
+    <return-response>
+      <set-status code="200" reason="OK" />
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+      </set-header>
+      <set-body>{"value":[{"Id":10,"Name":"Ibis"},{"Id":11,"Name":"Aster"}]}</set-body>
+    </return-response>
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>
+XML
+          }
+        }
+      }
     }
   }
 }
