@@ -12,6 +12,15 @@ Param(
   [string]$ApiVersion = "2022-05-01"
 )
 
+# DEPRECATED: WAF tuning config is now applied via Terraform (module.waf) using the
+# config/waf/{env}/exclusions.json and config/waf/{env}/rule-overrides.json files.
+# Run the "Config Deploy" GitHub Actions workflow to apply WAF config changes.
+#
+# This script is retained as a fallback for emergency out-of-band patching only.
+# Use it only when Terraform state is unavailable or the workflow is broken.
+# Always re-apply via Terraform afterwards to keep state consistent.
+Write-Warning "deploy-config.ps1 is deprecated. Use the 'Config Deploy' workflow (Terraform) instead."
+
 $ErrorActionPreference = "Stop"
 
 Write-Host "Applying WAF config for environment: $Environment in mode: $Mode"

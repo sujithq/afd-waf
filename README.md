@@ -27,7 +27,7 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
 - PowerShell 7+ (for local helper scripts)
 - GitHub OIDC federated credentials configured (see docs/devops-setup.md for step-by-step setup)
 
-### Deployment flow
+## Deployment flow
 
 1. **Configure OIDC and GitHub variables** (one-time setup):
    - Follow docs/devops-setup.md step-by-step OIDC section
@@ -47,24 +47,29 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
    ```
 
 3. **Push to branch and open PR**:
-   - Infra Validate workflow runs automatically (lint, schema, what-if)
+   - Infra Validate workflow runs automatically on `infra/**` changes (lint, schema, what-if)
+   - Config Validate workflow runs automatically on `config/waf/**` and WAF module changes
    - Review CI outputs and lock file diff
    - Merge when all checks pass
 
-4. **Deploy infra to dev** (manual trigger):
-   - Run Infra Deploy workflow targeting dev environment
+4. **Deploy base infrastructure** (manual trigger — run once or when infra changes):
+   - Run **Infra Deploy** workflow targeting the desired environment
+   - Provisions AFD, WAF policy, APIM, and networking via Terraform or Bicep
    - Workflow uses OIDC to authenticate (no secrets in logs)
-   - Terraform and Bicep deployments tracked in Azure activity log
 
-5. **Deploy WAF config** (after infra is stable):
-   - Commit config/waf changes
-   - Infra Validate checks schema and policy guardrails
-   - Config Deploy runs in **Detection mode** first (safe to test)
-   - Monitor AFD WAF logs for tuning effectiveness
-   - Manually approve promotion to Prevention mode
+5. **Deploy WAF config** (separate workflow — run on every tuning change):
+   - Commit changes under `config/waf/` (e.g. add a selector to `exclusions.json`)
+   - Config Validate CI checks JSON schema and policy guardrails automatically
+   - Run **Config Deploy** workflow, select environment and WAF mode
+   - Terraform applies `module.waf` only (`-target=module.waf`), leaving infra untouched
+   - WAF exclusions and overrides are stored in Terraform state — no out-of-band patch needed
 
 6. **Smoke test and evidence collection**:
    - Run `scripts/smoke-odata.ps1` against AFD hostname to generate test traffic
    - Export WAF evidence using KQL template in `scripts/export-waf-evidence.kql`
    - Use findings to refine exclusions in next iteration
+
+> **`scripts/deploy-config.ps1`** is retained as an emergency fallback for out-of-band patching
+> when Terraform is unavailable. Always re-apply via the Config Deploy workflow afterwards to
+> keep Terraform state consistent.
 

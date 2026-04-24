@@ -27,6 +27,10 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: 1.14.9
+
       - name: Upgrade Azure CLI
         run: |
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
@@ -38,15 +42,22 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy config payload
-        shell: pwsh
+      - name: Deploy WAF config via Terraform
+        env:
+          ARM_USE_OIDC: true
+          ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_location: ${{ vars.TF_LOCATION }}
+          TF_VAR_environment: ${{ inputs.environment }}
+          TF_VAR_name_prefix: ${{ vars.TF_NAME_PREFIX }}
+          TF_VAR_waf_mode: ${{ inputs.mode }}
+          TF_VAR_apim_publisher_email: ${{ vars.APIM_PUBLISHER_EMAIL }}
+          TF_VAR_apim_publisher_name: ${{ vars.APIM_PUBLISHER_NAME }}
         run: |
-          ./scripts/deploy-config.ps1 `
-            -Environment ${{ inputs.environment }} `
-            -Mode ${{ inputs.mode }} `
-            -SubscriptionId "${{ vars.AZURE_SUBSCRIPTION_ID }}" `
-            -ResourceGroup "${{ vars.AZURE_RESOURCE_GROUP }}" `
-            -WafPolicyName "${{ vars.WAF_POLICY_NAME }}"
+          cd infra/terraform
+          terraform init -upgrade=false
+          terraform apply -auto-approve -input=false -target=module.waf
 
       - name: Smoke test
         if: inputs.environment == 'dev' || inputs.environment == 'test'
@@ -58,4 +69,4 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: waf-config-manifest-${{ inputs.environment }}
-          path: waf-config-manifest-${{ inputs.environment }}.json
+          path: config/waf/${{ inputs.environment }}/exclusions.json

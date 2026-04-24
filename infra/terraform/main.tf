@@ -1,3 +1,24 @@
+locals {
+  _exclusions_raw = jsondecode(file("${path.root}/../../config/waf/${var.environment}/exclusions.json"))
+  _overrides_raw  = jsondecode(file("${path.root}/../../config/waf/${var.environment}/rule-overrides.json"))
+
+  # Map JSON camelCase fields to the Terraform variable shape.
+  waf_exclusions = [for e in local._exclusions_raw.exclusions : {
+    match_variable          = e.matchVariable
+    selector_match_operator = e.selectorMatchOperator
+    selector                = e.selector
+  }]
+
+  waf_rule_overrides = [for o in local._overrides_raw.overrides : {
+    rule_group_name = o.ruleGroupName
+    rules = [for r in try(o.rules, []) : {
+      rule_id = r.ruleId
+      enabled = try(r.enabled, true)
+      action  = try(r.action, "Log")
+    }]
+  }]
+}
+
 resource "azurerm_resource_group" "main" {
   name     = "${var.name_prefix}-${var.environment}-rg"
   location = var.location
@@ -11,6 +32,8 @@ module "waf" {
   name_prefix         = var.name_prefix
   environment         = var.environment
   waf_mode            = var.waf_mode
+  waf_exclusions      = local.waf_exclusions
+  waf_rule_overrides  = local.waf_rule_overrides
 }
 
 module "apim" {

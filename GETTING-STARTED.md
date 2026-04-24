@@ -680,11 +680,12 @@ git push --set-upstream origin feat/initial-setup
 ### 3. Wait for CI Validation
 
 The **Infra Validate** workflow triggers automatically for pull requests that change `infra/**` or `scripts/check-avm-versions.ps1`.
-- Check that Infra Validate succeeds (Bicep build, Terraform fmt/validate, AVM governance marker check)
+The **Config Validate** workflow triggers automatically for pull requests that change `config/waf/**` or WAF module files (`infra/terraform/modules/waf-policy-composition/**`).
+- Check that the appropriate validate workflow succeeds
 - Review the workflow logs for any errors
 - If all pass, you're ready to deploy
 
-### 4. Merge and Deploy
+### 4. Merge and Deploy Base Infrastructure
 
 Once CI passes:
 1. Merge the pull request to `main`
@@ -695,11 +696,29 @@ Once CI passes:
 
 The deployment will:
 - Use OIDC to authenticate (no secrets in logs)
-- Provision AFD, WAF policy, APIM, and networking
+- Provision AFD, WAF policy (with exclusions/overrides), APIM, and networking
 - Take ~10–15 minutes
 - Provide deployment outputs (AFD hostname, APIM gateway URL)
 
-### 5. Capture Outputs
+### 5. Deploy WAF Config Changes Independently
+
+When you only need to update WAF tuning (e.g. add a new exclusion to `config/waf/dev/exclusions.json`), you do **not** need to re-run Infra Deploy:
+
+1. Edit `config/waf/<env>/exclusions.json` or `rule-overrides.json`
+2. Open a PR — **Config Validate** runs automatically (JSON schema + Terraform fmt/validate)
+3. Merge to `main`
+4. Go to **Actions → Config Deploy**
+5. Click **Run workflow**, select environment and WAF mode (e.g. `dev`, `Detection`)
+6. Terraform applies `module.waf` only (`-target=module.waf`) — base infra is untouched
+7. WAF exclusions and overrides are stored in Terraform state (no out-of-band patch)
+
+> **Two-workflow model summary**:
+> | Workflow | When to run | What changes |
+> |---|---|---|
+> | **Infra Deploy** | New infra, module upgrades, structural changes | All Azure resources |
+> | **Config Deploy** | WAF tuning changes in `config/waf/**` | `module.waf` only (WAF policy rules) |
+
+### 6. Capture Outputs
 
 After deployment, capture the AFD base URL:
 
@@ -853,9 +872,9 @@ After successful dev deployment:
 
 1. **Deploy to test and prod** using the same Infra Deploy workflow (select different environments)
 2. **Update WAF config** by modifying `config/waf/dev/exclusions.json` with OData-specific rules
-3. **Run config-deploy** workflow in Detection mode to test tuning
+3. **Run Config Deploy** workflow in Detection mode to apply tuning (WAF module only — no infra re-deploy needed)
 4. **Review WAF evidence** using the KQL template to measure false-positive reduction
-5. **Promote to Prevention mode** after manual approval
+5. **Promote to Prevention mode** by re-running Config Deploy with mode set to `Prevention` after manual approval
 
 For detailed operational guidance, see:
 - [docs/architecture.md](docs/architecture.md) - System design
