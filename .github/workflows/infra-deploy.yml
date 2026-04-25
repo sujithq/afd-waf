@@ -13,6 +13,26 @@ on:
         required: true
         type: choice
         options: [bicep, terraform]
+      run_config_deploy:
+        description: Run Config Deploy after infrastructure deployment
+        required: false
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: string
+      iac:
+        description: IaC stack
+        required: true
+        type: string
+      run_config_deploy:
+        description: Run Config Deploy after infrastructure deployment
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -108,3 +128,11 @@ jobs:
           terraform apply -auto-approve -input=false
           echo "--- Infra outputs (pass to config-deploy) ---"
           terraform output -json | jq '{waf_policy_id: .waf_policy_id.value, waf_policy_name: .waf_policy_name.value}'
+
+  config-deploy:
+    needs: deploy
+    if: inputs.run_config_deploy == true
+    uses: ./.github/workflows/config-deploy.yml
+    with:
+      environment: ${{ inputs.environment }}
+    secrets: inherit

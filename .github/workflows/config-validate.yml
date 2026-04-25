@@ -1,6 +1,8 @@
 name: Config Validate
 
 on:
+  workflow_dispatch:
+  workflow_call:
   pull_request:
     paths:
       - 'config/waf/**'

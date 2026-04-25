@@ -1,0 +1,84 @@
+name: Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      location:
+        description: Azure region for resources
+        required: true
+        type: string
+        default: swedencentral
+      backend_rg:
+        description: Resource group for Terraform state
+        required: true
+        type: string
+        default: afd-waf-tfstate-rg
+      backend_sa:
+        description: Storage account for Terraform state (must be globally unique)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Upgrade Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+      - name: Azure login
+        uses: Azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create Terraform backend infrastructure
+        run: |
+          echo "Creating resource group for Terraform state..."
+          az group create \
+            --name ${{ inputs.backend_rg }} \
+            --location ${{ inputs.location }} \
+            --only-show-errors
+
+          echo "Creating storage account for Terraform state..."
+          if ! az storage account show \
+              --name ${{ inputs.backend_sa }} \
+              --resource-group ${{ inputs.backend_rg }} \
+              --only-show-errors &>/dev/null; then
+            az storage account create \
+              --name ${{ inputs.backend_sa }} \
+              --resource-group ${{ inputs.backend_rg }} \
+              --location ${{ inputs.location }} \
+              --sku Standard_LRS \
+              --allow-shared-key-access false \
+              --only-show-errors
+          else
+            echo "Storage account already exists, skipping creation."
+          fi
+
+          echo "Creating tfstate container..."
+          az storage container create \
+            --name tfstate \
+            --account-name ${{ inputs.backend_sa }} \
+            --auth-mode login \
+            --only-show-errors 2>/dev/null || true
+
+          echo "Bootstrap complete!"
+          echo ""
+          echo "Next steps:"
+          echo "1. Set GitHub repository variables:"
+          echo "   - TF_BACKEND_RG: ${{ inputs.backend_rg }}"
+          echo "   - TF_BACKEND_SA: ${{ inputs.backend_sa }}"
+          echo "   - TF_LOCATION: ${{ inputs.location }}"
+          echo ""
+          echo "2. Run 'Infra Deploy' workflow to deploy infrastructure"
+          echo "3. Run 'Config Deploy' workflow to apply WAF configuration"

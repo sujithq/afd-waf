@@ -8,15 +8,18 @@ This guide walks you through setting up this repository from scratch, from local
 
 **Note**: Most commands are shell-agnostic and work in both PowerShell and bash. Where differences exist (e.g., variable assignment syntax), both variants are shown.
 
+**Quick Start Option**: If you prefer to use GitHub workflows instead of local setup, skip to [Quick Start with Workflows](#quick-start-with-workflows) after completing the OIDC setup.
+
 **Table of Contents**
 1. [Prerequisites](#prerequisites)
-2. [Local Environment Setup](#local-environment-setup)
-3. [Azure Subscription Setup](#azure-subscription-setup)
-4. [GitHub OIDC Federation Setup](#github-oidc-federation-setup)
-5. [GitHub Repository Configuration](#github-repository-configuration)
-6. [First Local Validation](#first-local-validation)
-7. [First Deployment to Dev](#first-deployment-to-dev)
-8. [Testing and Troubleshooting](#testing-and-troubleshooting)
+2. [GitHub OIDC Federation Setup](#github-oidc-federation-setup)
+3. [Quick Start with Workflows](#quick-start-with-workflows)
+4. [Local Environment Setup](#local-environment-setup)
+5. [Azure Subscription Setup](#azure-subscription-setup)
+6. [GitHub Repository Configuration](#github-repository-configuration)
+7. [First Local Validation](#first-local-validation)
+8. [First Deployment to Dev](#first-deployment-to-dev)
+9. [Testing and Troubleshooting](#testing-and-troubleshooting)
 
 ---
 
@@ -489,6 +492,93 @@ az role assignment list \
 # Note: If you query with --assignee "$CLIENT_ID" and see no rows, verify CLIENT_ID is set.
 # For deterministic results, prefer --assignee-object-id with an explicit scope.
 ```
+
+---
+
+## Quick Start with Workflows
+
+If you prefer to use GitHub Actions workflows instead of local setup, follow these streamlined steps after completing the OIDC Federation Setup above.
+
+### Overview
+
+This repository provides automated workflows that you can trigger manually:
+
+1. **Bootstrap** - Creates Terraform backend storage (one-time setup)
+2. **Infra Deploy** - Deploys Azure infrastructure (AFD, WAF, APIM)
+3. **Config Deploy** - Applies WAF configuration
+4. **Infra Validate** - Validates infrastructure code
+5. **Config Validate** - Validates WAF configuration
+
+### Quick Start Steps
+
+#### 1. Set Minimal GitHub Variables
+
+After completing OIDC Federation Setup, add these repository variables in GitHub (**Settings → Secrets and variables → Actions → Variables**):
+
+```
+AZURE_CLIENT_ID: <from OIDC Federation Setup>
+AZURE_TENANT_ID: <from OIDC Federation Setup>
+AZURE_SUBSCRIPTION_ID: <your subscription ID>
+TF_LOCATION: swedencentral
+TF_NAME_PREFIX: acafd
+APIM_PUBLISHER_EMAIL: your-email@example.com
+APIM_PUBLISHER_NAME: Your Name
+```
+
+#### 2. Run Bootstrap Workflow
+
+1. Go to **Actions → Bootstrap** in your GitHub repository
+2. Click **Run workflow**
+3. Fill in the parameters:
+   - **location**: `swedencentral` (or your preferred region)
+   - **backend_rg**: `afd-waf-tfstate-rg`
+   - **backend_sa**: `afdwaftf<unique-id>` (must be globally unique, lowercase, alphanumeric)
+4. Click **Run workflow**
+
+After the workflow completes, add these variables based on the output:
+```
+TF_BACKEND_RG: afd-waf-tfstate-rg
+TF_BACKEND_SA: <the storage account name you used>
+```
+
+#### 3. Run Infra Deploy Workflow
+
+1. Go to **Actions → Infra Deploy**
+2. Click **Run workflow**
+3. Select:
+   - **environment**: `dev`
+   - **iac**: `terraform` (or `bicep`)
+   - **run_config_deploy**: `true` (to automatically run config deployment afterwards)
+4. Click **Run workflow**
+
+This will:
+- Create the Azure infrastructure (AFD, WAF policy, APIM)
+- If `run_config_deploy` is true, automatically run the Config Deploy workflow afterwards
+
+#### 4. (Optional) Run Config Deploy Separately
+
+If you didn't enable automatic config deployment, or want to update WAF configuration later:
+
+1. Go to **Actions → Config Deploy**
+2. Click **Run workflow**
+3. Select **environment**: `dev`
+4. Click **Run workflow**
+
+### Workflow Chaining
+
+The workflows can be chained together:
+
+- **Infra Deploy** can automatically trigger **Config Deploy** if you enable the `run_config_deploy` option
+- This ensures your WAF configuration is applied immediately after infrastructure deployment
+
+### Manual Validation
+
+You can also manually trigger validation workflows at any time:
+
+- **Infra Validate** - Validates Bicep, Terraform, and AVM governance
+- **Config Validate** - Validates WAF JSON schemas and security guardrails
+
+These validation workflows run automatically on pull requests, but you can also trigger them manually for testing.
 
 ---
 
