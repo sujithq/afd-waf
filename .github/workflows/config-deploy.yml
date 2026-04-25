@@ -45,11 +45,15 @@ jobs:
           PREFIX="${{ vars.TF_NAME_PREFIX }}"
           WAF_NAME=$(echo "${PREFIX}waf${ENV}" | tr '[:upper:]' '[:lower:]' | tr -d '-')
           RG="${PREFIX}-${ENV}-rg"
-          # Fetch canonical resource ID from Azure to avoid reconstructing ARM path manually
-          WAF_ID=$(az network front-door waf-policy show \
+          # Verify policy exists; CLI ID output can lowercase static ARM path segments,
+          # which breaks strict Terraform import ID parsing in newer azurerm versions.
+          az network front-door waf-policy show \
             --name "$WAF_NAME" \
             --resource-group "$RG" \
-            --query "id" --output tsv)
+            --query "name" --output tsv >/dev/null
+
+          # Emit canonical-cased ARM ID for Terraform import compatibility.
+          WAF_ID="/subscriptions/${{ vars.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${RG}/providers/Microsoft.Network/frontdoorWebApplicationFirewallPolicies/${WAF_NAME}"
           echo "TF_VAR_waf_policy_name=${WAF_NAME}" >> "$GITHUB_ENV"
           echo "TF_VAR_resource_group_name=${RG}" >> "$GITHUB_ENV"
           echo "TF_VAR_waf_policy_id=${WAF_ID}" >> "$GITHUB_ENV"
