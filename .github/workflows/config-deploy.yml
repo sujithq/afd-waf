@@ -8,6 +8,12 @@ on:
         required: true
         type: choice
         options: [dev, test, prod]
+  workflow_call:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: string
 
 permissions:
   contents: read

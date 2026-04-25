@@ -20,6 +20,24 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
 
 > **New to this repo?** Start with [GETTING-STARTED.md](GETTING-STARTED.md) for a complete step-by-step walkthrough including local setup, Azure OIDC federation, GitHub configuration, and first deployment. This guide takes ~45–60 minutes and covers everything from scratch.
 
+> **Quick Start Option:** If you prefer to use GitHub workflows instead of local setup, see the [Quick Start with Workflows](GETTING-STARTED.md#quick-start-with-workflows) section after completing OIDC setup. You can bootstrap, deploy infrastructure, and apply configuration entirely through GitHub Actions.
+
+### Available Workflows
+
+All workflows support manual triggering (`workflow_dispatch`):
+
+1. **Bootstrap** - One-time setup for Terraform backend storage
+2. **Infra Deploy** - Deploys Azure infrastructure (AFD, WAF, APIM)
+3. **Config Deploy** - Applies WAF configuration
+4. **Infra Validate** - Validates infrastructure code (runs on PR and manual trigger)
+5. **Config Validate** - Validates WAF configuration (runs on PR and manual trigger)
+6. **Config Rollback** - Emergency rollback to known-good configuration
+
+### Workflow Chaining
+
+Workflows can be chained for streamlined deployment:
+- **Infra Deploy** can automatically trigger **Config Deploy** after infrastructure deployment by enabling the `run_config_deploy` option
+
 ### Prerequisites
 - Terraform CLI: `>= 1.14.9, < 2.0.0` (local)
 - Bicep CLI: `>= 0.42.1` (local)
@@ -28,6 +46,28 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
 - GitHub OIDC federated credentials configured (see docs/devops-setup.md for step-by-step setup)
 
 ### Deployment flow
+
+#### Option 1: Quick Start with Workflows (Recommended)
+
+1. **Run Bootstrap workflow** (one-time setup):
+   - Go to **Actions → Bootstrap** in GitHub
+   - Provide location, backend resource group, and storage account name
+   - Note the output values for GitHub variables
+
+2. **Configure GitHub variables** (see [Quick Start with Workflows](GETTING-STARTED.md#quick-start-with-workflows)):
+   - Add repository variables: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, etc.
+   - Add backend variables from Bootstrap output: `TF_BACKEND_RG`, `TF_BACKEND_SA`
+
+3. **Run Infra Deploy workflow**:
+   - Go to **Actions → Infra Deploy**
+   - Select environment and IaC stack (terraform/bicep)
+   - Enable `run_config_deploy` to automatically run config deployment afterwards
+
+4. **Run Config Deploy workflow** (if not chained):
+   - Go to **Actions → Config Deploy**
+   - Select environment
+
+#### Option 2: Local Development with Manual Steps
 
 1. **Configure OIDC and GitHub variables** (one-time setup):
    - Follow docs/devops-setup.md step-by-step OIDC section

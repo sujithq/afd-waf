@@ -8,15 +8,18 @@ This guide walks you through setting up this repository from scratch, from local
 
 **Note**: Most commands are shell-agnostic and work in both PowerShell and bash. Where differences exist (e.g., variable assignment syntax), both variants are shown.
 
+**Quick Start Option**: If you prefer to use GitHub workflows instead of local setup, skip to [Quick Start with Workflows](#quick-start-with-workflows) after completing the OIDC setup.
+
 **Table of Contents**
 1. [Prerequisites](#prerequisites)
-2. [Local Environment Setup](#local-environment-setup)
-3. [Azure Subscription Setup](#azure-subscription-setup)
-4. [GitHub OIDC Federation Setup](#github-oidc-federation-setup)
-5. [GitHub Repository Configuration](#github-repository-configuration)
-6. [First Local Validation](#first-local-validation)
-7. [First Deployment to Dev](#first-deployment-to-dev)
-8. [Testing and Troubleshooting](#testing-and-troubleshooting)
+2. [GitHub OIDC Federation Setup](#github-oidc-federation-setup)
+3. [Quick Start with Workflows](#quick-start-with-workflows)
+4. [Local Environment Setup](#local-environment-setup)
+5. [Azure Subscription Setup](#azure-subscription-setup)
+6. [GitHub Repository Configuration](#github-repository-configuration)
+7. [First Local Validation](#first-local-validation)
+8. [First Deployment to Dev](#first-deployment-to-dev)
+9. [Testing and Troubleshooting](#testing-and-troubleshooting)
 
 ---
 
@@ -489,6 +492,126 @@ az role assignment list \
 # Note: If you query with --assignee "$CLIENT_ID" and see no rows, verify CLIENT_ID is set.
 # For deterministic results, prefer --assignee-object-id with an explicit scope.
 ```
+
+---
+
+## Quick Start with Workflows
+
+If you prefer to use GitHub Actions workflows instead of local setup, follow these streamlined steps after completing the OIDC Federation Setup above.
+
+### Overview
+
+This repository provides automated workflows that you can trigger manually:
+
+1. **Bootstrap** - Creates Terraform backend storage (one-time setup)
+2. **Infra Deploy** - Deploys Azure infrastructure (AFD, WAF, APIM)
+3. **Config Deploy** - Applies WAF configuration
+4. **Infra Validate** - Validates infrastructure code
+5. **Config Validate** - Validates WAF configuration
+
+### Quick Start Steps
+
+#### 1. Set Minimal GitHub Variables
+
+After completing OIDC Federation Setup, add these repository variables in GitHub (**Settings → Secrets and variables → Actions → Variables**):
+
+```
+AZURE_CLIENT_ID: <from OIDC Federation Setup>
+AZURE_TENANT_ID: <from OIDC Federation Setup>
+AZURE_SUBSCRIPTION_ID: <your subscription ID>
+TF_LOCATION: swedencentral
+TF_NAME_PREFIX: acafd
+APIM_PUBLISHER_EMAIL: your-email@example.com
+APIM_PUBLISHER_NAME: Your Name
+```
+
+#### 2. Run Bootstrap Workflow
+
+1. Go to **Actions → Bootstrap** in your GitHub repository
+2. Click **Run workflow**
+3. Fill in the parameters:
+   - **location**: `swedencentral` (or your preferred region)
+   - **backend_rg**: `afd-waf-tfstate-rg`
+   - **backend_sa**: `afdwaftf<unique-id>` (must be globally unique, lowercase, alphanumeric)
+4. Click **Run workflow**
+
+**IMPORTANT - Manual Configuration Required:**
+
+After the bootstrap workflow completes, you **must manually** add these GitHub repository variables for subsequent workflows to access the backend:
+
+1. Go to **Settings → Secrets and variables → Actions → Variables** in your GitHub repository
+2. Add or update these repository variables with the values from the bootstrap output:
+   ```
+   TF_BACKEND_RG: afd-waf-tfstate-rg
+   TF_BACKEND_SA: <the storage account name you used>
+   TF_LOCATION: <the location you used>
+   ```
+
+**Why is this needed?**
+- When workflows are **chained** (using `workflow_call`), outputs are passed automatically between workflows
+- When workflows are run **manually** (using `workflow_dispatch`), they read from GitHub repository variables
+- The Bootstrap workflow creates the Azure resources and outputs the values, but GitHub Actions requires manual configuration of repository variables for security reasons
+- This one-time manual step ensures subsequent workflows (Infra Deploy, Config Deploy) can find the Terraform backend
+
+#### 3. Run Infra Deploy Workflow
+
+1. Go to **Actions → Infra Deploy**
+2. Click **Run workflow**
+3. Select:
+   - **environment**: `dev`
+   - **iac**: `terraform` (or `bicep`)
+   - **run_config_deploy**: `true` (to automatically run config deployment afterwards)
+4. Click **Run workflow**
+
+This will:
+- Create the Azure infrastructure (AFD, WAF policy, APIM)
+- If `run_config_deploy` is true, automatically run the Config Deploy workflow afterwards
+
+#### 4. (Optional) Run Config Deploy Separately
+
+If you didn't enable automatic config deployment, or want to update WAF configuration later:
+
+1. Go to **Actions → Config Deploy**
+2. Click **Run workflow**
+3. Select **environment**: `dev`
+4. Click **Run workflow**
+
+### Workflow Chaining
+
+The workflows can be chained together:
+
+- **Infra Deploy** can automatically trigger **Config Deploy** if you enable the `run_config_deploy` option
+- This ensures your WAF configuration is applied immediately after infrastructure deployment
+
+**Understanding Data Flow Between Workflows:**
+
+There are two ways workflows communicate:
+
+1. **Chained Workflows (workflow_call):**
+   - When workflows call each other programmatically
+   - Data is passed via workflow outputs/inputs automatically
+   - Example: Bootstrap outputs → (automatically passed) → Infra Deploy inputs
+   - No manual configuration needed
+
+2. **Manual Workflows (workflow_dispatch):**
+   - When you trigger workflows manually from the Actions UI
+   - Workflows read from GitHub repository variables (`${{ vars.VARIABLE_NAME }}`)
+   - Example: Bootstrap completes → You manually set `TF_BACKEND_RG` and `TF_BACKEND_SA` as repository variables → Infra Deploy reads these variables
+   - Requires one-time manual configuration after bootstrap
+
+**Current Implementation:**
+- Bootstrap workflow provides outputs for future chaining capabilities
+- For manual execution, you must set the output values as GitHub repository variables
+- Infra Deploy and Config Deploy read from repository variables (`vars.TF_BACKEND_RG`, `vars.TF_BACKEND_SA`)
+
+### Manual Validation
+
+You can also manually trigger validation workflows at any time:
+
+- **Infra Validate** - Validates Bicep, Terraform, and AVM governance
+- **Config Validate** - Validates WAF JSON schemas and security guardrails
+
+These validation workflows run automatically on pull requests, but you can also trigger them manually for testing.
 
 ---
 
