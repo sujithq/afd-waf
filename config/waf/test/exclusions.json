@@ -11,7 +11,7 @@
       "selectorMatchOperator": "Equals",
       "selector": "$filter",
       "ruleSet": "Microsoft_DefaultRuleSet_2.1",
-      "ruleGroup": "REQUEST-942-APPLICATION-ATTACK-SQLI",
+      "ruleGroup": "SQLI",
       "ruleId": "942100"
     },
     {
@@ -19,7 +19,7 @@
       "selectorMatchOperator": "Equals",
       "selector": "$orderby",
       "ruleSet": "Microsoft_DefaultRuleSet_2.1",
-      "ruleGroup": "REQUEST-942-APPLICATION-ATTACK-SQLI",
+      "ruleGroup": "SQLI",
       "ruleId": "942110"
     }
   ]
