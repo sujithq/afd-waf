@@ -53,7 +53,7 @@ jobs:
             --query "name" --output tsv >/dev/null
 
           # Emit canonical-cased ARM ID for Terraform import compatibility.
-          WAF_ID="/subscriptions/${{ vars.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${RG}/providers/Microsoft.Network/frontdoorWebApplicationFirewallPolicies/${WAF_NAME}"
+          WAF_ID="/subscriptions/${{ vars.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${RG}/providers/Microsoft.Network/frontDoorWebApplicationFirewallPolicies/${WAF_NAME}"
           echo "TF_VAR_waf_policy_name=${WAF_NAME}" >> "$GITHUB_ENV"
           echo "TF_VAR_resource_group_name=${RG}" >> "$GITHUB_ENV"
           echo "TF_VAR_waf_policy_id=${WAF_ID}" >> "$GITHUB_ENV"
