@@ -17,6 +17,30 @@ on:
         description: Storage account for Terraform state (must be globally unique)
         required: true
         type: string
+  workflow_call:
+    inputs:
+      location:
+        description: Azure region for resources
+        required: true
+        type: string
+      backend_rg:
+        description: Resource group for Terraform state
+        required: true
+        type: string
+      backend_sa:
+        description: Storage account for Terraform state (must be globally unique)
+        required: true
+        type: string
+    outputs:
+      backend_rg:
+        description: Resource group for Terraform state
+        value: ${{ jobs.bootstrap.outputs.backend_rg }}
+      backend_sa:
+        description: Storage account for Terraform state
+        value: ${{ jobs.bootstrap.outputs.backend_sa }}
+      location:
+        description: Azure region for resources
+        value: ${{ jobs.bootstrap.outputs.location }}
 
 permissions:
   contents: read
@@ -25,6 +49,10 @@ permissions:
 jobs:
   bootstrap:
     runs-on: ubuntu-latest
+    outputs:
+      backend_rg: ${{ steps.output-values.outputs.backend_rg }}
+      backend_sa: ${{ steps.output-values.outputs.backend_sa }}
+      location: ${{ steps.output-values.outputs.location }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -73,12 +101,44 @@ jobs:
             --only-show-errors 2>/dev/null || true
 
           echo "Bootstrap complete!"
+
+      - name: Output values for next workflows
+        id: output-values
+        run: |
+          echo "backend_rg=${{ inputs.backend_rg }}" >> $GITHUB_OUTPUT
+          echo "backend_sa=${{ inputs.backend_sa }}" >> $GITHUB_OUTPUT
+          echo "location=${{ inputs.location }}" >> $GITHUB_OUTPUT
           echo ""
-          echo "Next steps:"
-          echo "1. Set GitHub repository variables:"
+          echo "==================================================="
+          echo "Bootstrap Complete - Output Summary"
+          echo "==================================================="
+          echo "Resource Group:    ${{ inputs.backend_rg }}"
+          echo "Storage Account:   ${{ inputs.backend_sa }}"
+          echo "Location:          ${{ inputs.location }}"
+          echo ""
+          echo "==================================================="
+          echo "Next Steps for Manual Workflow Execution:"
+          echo "==================================================="
+          echo ""
+          echo "IMPORTANT: When running workflows manually (not chained),"
+          echo "you must set these as GitHub repository variables:"
+          echo ""
+          echo "1. Go to: Settings → Secrets and variables → Actions → Variables"
+          echo ""
+          echo "2. Add or update these repository variables:"
           echo "   - TF_BACKEND_RG: ${{ inputs.backend_rg }}"
           echo "   - TF_BACKEND_SA: ${{ inputs.backend_sa }}"
           echo "   - TF_LOCATION: ${{ inputs.location }}"
           echo ""
-          echo "2. Run 'Infra Deploy' workflow to deploy infrastructure"
-          echo "3. Run 'Config Deploy' workflow to apply WAF configuration"
+          echo "3. Then run these workflows:"
+          echo "   - Infra Deploy workflow (select environment and IaC stack)"
+          echo "   - Config Deploy workflow (select environment)"
+          echo ""
+          echo "==================================================="
+          echo "For Chained Workflow Execution:"
+          echo "==================================================="
+          echo ""
+          echo "These values are automatically passed as outputs when"
+          echo "workflows are chained using workflow_call."
+          echo ""
+          echo "==================================================="

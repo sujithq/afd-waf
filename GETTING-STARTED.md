@@ -535,11 +535,23 @@ APIM_PUBLISHER_NAME: Your Name
    - **backend_sa**: `afdwaftf<unique-id>` (must be globally unique, lowercase, alphanumeric)
 4. Click **Run workflow**
 
-After the workflow completes, add these variables based on the output:
-```
-TF_BACKEND_RG: afd-waf-tfstate-rg
-TF_BACKEND_SA: <the storage account name you used>
-```
+**IMPORTANT - Manual Configuration Required:**
+
+After the bootstrap workflow completes, you **must manually** add these GitHub repository variables for subsequent workflows to access the backend:
+
+1. Go to **Settings → Secrets and variables → Actions → Variables** in your GitHub repository
+2. Add or update these repository variables with the values from the bootstrap output:
+   ```
+   TF_BACKEND_RG: afd-waf-tfstate-rg
+   TF_BACKEND_SA: <the storage account name you used>
+   TF_LOCATION: <the location you used>
+   ```
+
+**Why is this needed?**
+- When workflows are **chained** (using `workflow_call`), outputs are passed automatically between workflows
+- When workflows are run **manually** (using `workflow_dispatch`), they read from GitHub repository variables
+- The Bootstrap workflow creates the Azure resources and outputs the values, but GitHub Actions requires manual configuration of repository variables for security reasons
+- This one-time manual step ensures subsequent workflows (Infra Deploy, Config Deploy) can find the Terraform backend
 
 #### 3. Run Infra Deploy Workflow
 
@@ -570,6 +582,27 @@ The workflows can be chained together:
 
 - **Infra Deploy** can automatically trigger **Config Deploy** if you enable the `run_config_deploy` option
 - This ensures your WAF configuration is applied immediately after infrastructure deployment
+
+**Understanding Data Flow Between Workflows:**
+
+There are two ways workflows communicate:
+
+1. **Chained Workflows (workflow_call):**
+   - When workflows call each other programmatically
+   - Data is passed via workflow outputs/inputs automatically
+   - Example: Bootstrap outputs → (automatically passed) → Infra Deploy inputs
+   - No manual configuration needed
+
+2. **Manual Workflows (workflow_dispatch):**
+   - When you trigger workflows manually from the Actions UI
+   - Workflows read from GitHub repository variables (`${{ vars.VARIABLE_NAME }}`)
+   - Example: Bootstrap completes → You manually set `TF_BACKEND_RG` and `TF_BACKEND_SA` as repository variables → Infra Deploy reads these variables
+   - Requires one-time manual configuration after bootstrap
+
+**Current Implementation:**
+- Bootstrap workflow provides outputs for future chaining capabilities
+- For manual execution, you must set the output values as GitHub repository variables
+- Infra Deploy and Config Deploy read from repository variables (`vars.TF_BACKEND_RG`, `vars.TF_BACKEND_SA`)
 
 ### Manual Validation
 
