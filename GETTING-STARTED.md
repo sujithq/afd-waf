@@ -503,7 +503,7 @@ If you prefer to use GitHub Actions workflows instead of local setup, follow the
 
 This repository provides automated workflows that you can trigger manually:
 
-1. **Bootstrap** - Creates Terraform backend storage (one-time setup)
+1. **Bootstrap** - Creates Terraform backend storage and bootstraps backend RBAC (one-time setup)
 2. **Infra Deploy** - Deploys Azure infrastructure (AFD, WAF, APIM)
 3. **Config Deploy** - Applies WAF configuration
 4. **Infra Validate** - Validates infrastructure code
@@ -533,6 +533,7 @@ APIM_PUBLISHER_NAME: Your Name
    - **location**: `swedencentral` (or your preferred region)
    - **backend_rg**: `afd-waf-tfstate-rg`
    - **backend_sa**: `afdwaftf<unique-id>` (must be globally unique, lowercase, alphanumeric)
+  - **target_sp_object_id** (optional): service principal object ID to grant backend RBAC to. If omitted, the workflow resolves it from `AZURE_CLIENT_ID`.
 4. Click **Run workflow**
 
 **IMPORTANT - Manual Configuration Required:**
@@ -551,6 +552,7 @@ After the bootstrap workflow completes, you **must manually** add these GitHub r
 - When workflows are **chained** (using `workflow_call`), outputs are passed automatically between workflows
 - When workflows are run **manually** (using `workflow_dispatch`), they read from GitHub repository variables
 - The Bootstrap workflow creates the Azure resources and outputs the values, but GitHub Actions requires manual configuration of repository variables for security reasons
+- The Bootstrap workflow also grants `Storage Blob Data Contributor` on the backend storage account scope (idempotent)
 - This one-time manual step ensures subsequent workflows (Infra Deploy, Config Deploy) can find the Terraform backend
 
 #### 3. Run Infra Deploy Workflow
@@ -601,6 +603,7 @@ There are two ways workflows communicate:
 
 **Current Implementation:**
 - Bootstrap workflow provides outputs for future chaining capabilities
+- Bootstrap workflow grants backend data-plane RBAC for Terraform state access
 - For manual execution, you must set the output values as GitHub repository variables
 - Infra Deploy and Config Deploy read from repository variables (`vars.TF_BACKEND_RG`, `vars.TF_BACKEND_SA`)
 
@@ -996,6 +999,8 @@ cat scripts/export-waf-evidence.kql
 - **Cause**: The Terraform backend is trying key-based auth against a storage account that has shared key access disabled.
 - **Solution**:
   - Ensure Infra Deploy uses Azure AD auth for backend init (`use_azuread_auth=true`).
+  - Prefer running **Bootstrap** once (or re-running it) for the same backend values; it now grants backend `Storage Blob Data Contributor` automatically.
+    - Optional: pass `target_sp_object_id` if Entra lookup via `AZURE_CLIENT_ID` is restricted.
   - Grant backend data-plane access on the state storage account:
     - PowerShell: `az role assignment create --assignee-object-id <SP_OBJECT_ID> --assignee-principal-type ServicePrincipal --role "Storage Blob Data Contributor" --scope "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<TF_BACKEND_RG>/providers/Microsoft.Storage/storageAccounts/<TF_BACKEND_SA>"`
     - Bash: `az role assignment create --assignee-object-id <SP_OBJECT_ID> --assignee-principal-type ServicePrincipal --role "Storage Blob Data Contributor" --scope "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<TF_BACKEND_RG>/providers/Microsoft.Storage/storageAccounts/<TF_BACKEND_SA>"`

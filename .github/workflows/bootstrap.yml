@@ -17,6 +17,10 @@ on:
         description: Storage account for Terraform state (must be globally unique)
         required: true
         type: string
+      target_sp_object_id:
+        description: Optional service principal object ID to grant backend RBAC to
+        required: false
+        type: string
   workflow_call:
     inputs:
       location:
@@ -30,6 +34,10 @@ on:
       backend_sa:
         description: Storage account for Terraform state (must be globally unique)
         required: true
+        type: string
+      target_sp_object_id:
+        description: Optional service principal object ID to grant backend RBAC to
+        required: false
         type: string
     outputs:
       backend_rg:
@@ -102,6 +110,44 @@ jobs:
 
           echo "Bootstrap complete!"
 
+      - name: Grant backend RBAC to deployment service principal
+        env:
+          TARGET_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          TARGET_SP_OBJECT_ID_INPUT: ${{ inputs.target_sp_object_id }}
+          SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          BACKEND_RG: ${{ inputs.backend_rg }}
+          BACKEND_SA: ${{ inputs.backend_sa }}
+        run: |
+          set -euo pipefail
+
+          SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${BACKEND_RG}/providers/Microsoft.Storage/storageAccounts/${BACKEND_SA}"
+
+          if [ -n "${TARGET_SP_OBJECT_ID_INPUT:-}" ]; then
+            TARGET_SP_OBJECT_ID="${TARGET_SP_OBJECT_ID_INPUT}"
+            echo "Using provided target service principal object ID."
+          else
+            TARGET_SP_OBJECT_ID=$(az ad sp show --id "$TARGET_CLIENT_ID" --query id -o tsv)
+            echo "Resolved target service principal object ID from AZURE_CLIENT_ID."
+          fi
+
+          EXISTING_COUNT=$(az role assignment list \
+            --assignee-object-id "$TARGET_SP_OBJECT_ID" \
+            --scope "$SCOPE" \
+            --role "Storage Blob Data Contributor" \
+            --query "length(@)" -o tsv)
+
+          if [ "$EXISTING_COUNT" = "0" ]; then
+            az role assignment create \
+              --assignee-object-id "$TARGET_SP_OBJECT_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role "Storage Blob Data Contributor" \
+              --scope "$SCOPE" \
+              --only-show-errors
+            echo "Created Storage Blob Data Contributor role assignment on backend storage account."
+          else
+            echo "Storage Blob Data Contributor role assignment already exists."
+          fi
+
       - name: Output values for next workflows
         id: output-values
         run: |
@@ -129,6 +175,10 @@ jobs:
           echo "   - TF_BACKEND_RG: ${{ inputs.backend_rg }}"
           echo "   - TF_BACKEND_SA: ${{ inputs.backend_sa }}"
           echo "   - TF_LOCATION: ${{ inputs.location }}"
+          echo ""
+          echo "RBAC bootstrap:" 
+          echo "   - Storage Blob Data Contributor is granted on backend storage scope"
+          echo "   - Target principal: input target_sp_object_id or vars.AZURE_CLIENT_ID"
           echo ""
           echo "3. Then run these workflows:"
           echo "   - Infra Deploy workflow (select environment and IaC stack)"
