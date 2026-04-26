@@ -14,8 +14,8 @@ on:
         type: string
         default: afd-waf-tfstate-rg
       backend_sa:
-        description: Storage account for Terraform state (must be globally unique)
-        required: true
+        description: Storage account for Terraform state (must be globally unique, leave blank to auto-generate)
+        required: false
         type: string
       target_sp_object_id:
         description: Optional service principal object ID to grant backend RBAC to
@@ -32,8 +32,8 @@ on:
         required: true
         type: string
       backend_sa:
-        description: Storage account for Terraform state (must be globally unique)
-        required: true
+        description: Storage account for Terraform state (must be globally unique, leave blank to auto-generate)
+        required: false
         type: string
       target_sp_object_id:
         description: Optional service principal object ID to grant backend RBAC to
@@ -66,6 +66,16 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Resolve storage account name
+        id: resolve-sa
+        run: |
+          if [ -n "${{ inputs.backend_sa }}" ]; then
+            echo "backend_sa=${{ inputs.backend_sa }}" >> $GITHUB_OUTPUT
+          else
+            SUFFIX=$(date +%s)
+            echo "backend_sa=tfstate${SUFFIX}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Upgrade Azure CLI
         run: |
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
@@ -87,11 +97,11 @@ jobs:
 
           echo "Creating storage account for Terraform state..."
           if ! az storage account show \
-              --name ${{ inputs.backend_sa }} \
+              --name ${{ steps.resolve-sa.outputs.backend_sa }} \
               --resource-group ${{ inputs.backend_rg }} \
               --only-show-errors &>/dev/null; then
             az storage account create \
-              --name ${{ inputs.backend_sa }} \
+              --name ${{ steps.resolve-sa.outputs.backend_sa }} \
               --resource-group ${{ inputs.backend_rg }} \
               --location ${{ inputs.location }} \
               --sku Standard_LRS \
@@ -104,7 +114,7 @@ jobs:
           echo "Creating tfstate container..."
           az storage container create \
             --name tfstate \
-            --account-name ${{ inputs.backend_sa }} \
+            --account-name ${{ steps.resolve-sa.outputs.backend_sa }} \
             --auth-mode login \
             --only-show-errors 2>/dev/null || true
 
@@ -116,7 +126,7 @@ jobs:
           TARGET_SP_OBJECT_ID_INPUT: ${{ inputs.target_sp_object_id }}
           SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           BACKEND_RG: ${{ inputs.backend_rg }}
-          BACKEND_SA: ${{ inputs.backend_sa }}
+          BACKEND_SA: ${{ steps.resolve-sa.outputs.backend_sa }}
         run: |
           set -euo pipefail
 
@@ -152,14 +162,14 @@ jobs:
         id: output-values
         run: |
           echo "backend_rg=${{ inputs.backend_rg }}" >> $GITHUB_OUTPUT
-          echo "backend_sa=${{ inputs.backend_sa }}" >> $GITHUB_OUTPUT
+          echo "backend_sa=${{ steps.resolve-sa.outputs.backend_sa }}" >> $GITHUB_OUTPUT
           echo "location=${{ inputs.location }}" >> $GITHUB_OUTPUT
           echo ""
           echo "==================================================="
           echo "Bootstrap Complete - Output Summary"
           echo "==================================================="
           echo "Resource Group:    ${{ inputs.backend_rg }}"
-          echo "Storage Account:   ${{ inputs.backend_sa }}"
+          echo "Storage Account:   ${{ steps.resolve-sa.outputs.backend_sa }}"
           echo "Location:          ${{ inputs.location }}"
           echo ""
           echo "==================================================="
@@ -173,7 +183,7 @@ jobs:
           echo ""
           echo "2. Add or update these repository variables:"
           echo "   - TF_BACKEND_RG: ${{ inputs.backend_rg }}"
-          echo "   - TF_BACKEND_SA: ${{ inputs.backend_sa }}"
+          echo "   - TF_BACKEND_SA: ${{ steps.resolve-sa.outputs.backend_sa }}"
           echo "   - TF_LOCATION: ${{ inputs.location }}"
           echo ""
           echo "RBAC bootstrap:" 
