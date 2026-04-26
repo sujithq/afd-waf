@@ -32,6 +32,7 @@ jobs:
         run: |
           az bicep install --version v0.42.1
           az bicep build --file infra/bicep/main.bicep
+          az bicep build --file infra/bicep-config/main.bicep
 
       - name: Terraform fmt and validate
         run: |
