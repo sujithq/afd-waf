@@ -28,8 +28,8 @@ try {
   }
 
   $apiPolicyConfig = Get-Content $apiPolicyPath | ConvertFrom-Json
-  if ($null -eq $apiPolicyConfig.base.pathPatterns) {
-    throw "config/waf/api-policies.json must define base.pathPatterns, even when it is an empty array"
+  if ($null -eq $apiPolicyConfig.base.enabled) {
+    throw "config/waf/api-policies.json must define base.enabled"
   }
 
   $apimCompositionPath = "infra/terraform/modules/apim-composition/main.tf"
@@ -39,7 +39,7 @@ try {
 
   $apimComposition = Get-Content $apimCompositionPath -Raw
   $apimApiPathsByName = @{}
-  foreach ($match in [regex]::Matches($apimComposition, '(?ms)^\s*name\s*=\s*"([^"]+)".*?^\s*path\s*=\s*"([^"]+)"')) {
+  foreach ($match in [regex]::Matches($apimComposition, '(?ms)^\s{4}[A-Za-z0-9_-]+\s*=\s*\{\s*name\s*=\s*"([^"]+)".*?^\s*path\s*=\s*"([^"]+)"')) {
     $apimApiPathsByName[$match.Groups[1].Value] = $match.Groups[2].Value
   }
 
@@ -67,12 +67,8 @@ try {
       $rightPrefix.StartsWith($leftPrefix, [System.StringComparison]::OrdinalIgnoreCase)
   }
 
-  function Test-PathPatternMatchesApimPath($pattern, $apimPath) {
-    $expectedRoot = "/$apimPath"
-    $patternPrefix = (Get-PathPrefix $pattern).TrimEnd('/')
-
-    return $patternPrefix.Equals($expectedRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
-      $patternPrefix.StartsWith("$expectedRoot/", [System.StringComparison]::OrdinalIgnoreCase)
+  function Get-ApiPathPattern($apimPath) {
+    return "/$apimPath/*"
   }
 
   $apiProperties = @()
@@ -82,24 +78,19 @@ try {
 
   $declaredApis = @($apiProperties | ForEach-Object { $_.Name })
   foreach ($api in $apiProperties) {
-    if ($null -eq $api.Value.pathPatterns -or $api.Value.pathPatterns.Count -eq 0) {
-      throw "API policy '$($api.Name)' must define at least one pathPatterns entry"
-    }
-
     if (-not $apimApiPathsByName.ContainsKey($api.Value.apimApiName)) {
       throw "API policy '$($api.Name)' references APIM API '$($api.Value.apimApiName)', but no matching API name is defined in $apimCompositionPath"
-    }
-
-    $apimPath = $apimApiPathsByName[$api.Value.apimApiName]
-    foreach ($pattern in @($api.Value.pathPatterns)) {
-      if (-not (Test-PathPatternMatchesApimPath $pattern $apimPath)) {
-        throw "Path pattern '$pattern' in API policy '$($api.Name)' does not match APIM API '$($api.Value.apimApiName)' path '/$apimPath'"
-      }
     }
   }
 
   $pathPatterns = @()
-  foreach ($pattern in @($apiPolicyConfig.base.pathPatterns)) {
+  $baseEnabled = $apiPolicyConfig.base.enabled -eq $true
+  $basePathPatterns = @()
+  if ($baseEnabled) {
+    $basePathPatterns = @("/*")
+  }
+
+  foreach ($pattern in $basePathPatterns) {
     $pathPatterns += [pscustomobject]@{
       policy = "base"
       pattern = $pattern
@@ -107,11 +98,10 @@ try {
   }
 
   foreach ($api in $apiProperties) {
-    foreach ($pattern in @($api.Value.pathPatterns)) {
-      $pathPatterns += [pscustomobject]@{
-        policy = $api.Name
-        pattern = $pattern
-      }
+    $apiPathPattern = Get-ApiPathPattern ($apimApiPathsByName[$api.Value.apimApiName])
+    $pathPatterns += [pscustomobject]@{
+      policy = $api.Name
+      pattern = $apiPathPattern
     }
   }
 
@@ -148,18 +138,6 @@ try {
 
   $baseExclusions = @((Get-Content $baseExclusionsPath | ConvertFrom-Json).exclusions)
   $baseExclusionKeys = @($baseExclusions | ForEach-Object { Get-ExclusionKey $_ })
-  foreach ($api in $apiProperties) {
-    foreach ($disabledExclusion in @($api.Value.disabledBaseExclusions)) {
-      if ($null -eq $disabledExclusion) {
-        continue
-      }
-
-      $disabledKey = Get-ExclusionKey $disabledExclusion
-      if ($baseExclusionKeys -notcontains $disabledKey) {
-        throw "API policy '$($api.Name)' disables a base exclusion that does not exist: $disabledKey"
-      }
-    }
-  }
 
   $exclusionFiles = Get-ChildItem config/waf -Recurse -File -Filter exclusions.json
   if ($exclusionFiles.Count -eq 0) {
@@ -177,8 +155,27 @@ try {
       throw "Missing matching rule-overrides.json for $($file.FullName)"
     }
 
-    Get-Content $file.FullName | ConvertFrom-Json | Out-Null
+    $exclusionsJson = Get-Content $file.FullName | ConvertFrom-Json
     Get-Content $overridePath | ConvertFrom-Json | Out-Null
+
+    foreach ($disabledExclusion in @($exclusionsJson.disabledBaseExclusions)) {
+      if ($null -eq $disabledExclusion) {
+        continue
+      }
+
+      if ($file.Directory.Parent.Name -ne "apis") {
+        throw "disabledBaseExclusions is only allowed in API-specific config packages: $($file.FullName)"
+      }
+
+      if ($declaredApis -notcontains $file.Directory.Name) {
+        throw "API config package '$($file.Directory.FullName)' disables a base exclusion but is not declared in config/waf/api-policies.json"
+      }
+
+      $disabledKey = Get-ExclusionKey $disabledExclusion
+      if ($baseExclusionKeys -notcontains $disabledKey) {
+        throw "API config package '$($file.Directory.FullName)' disables a base exclusion that does not exist: $disabledKey"
+      }
+    }
   }
 
   $all = Get-ChildItem config/waf -Recurse -File | ForEach-Object { Get-Content $_.FullName -Raw }

@@ -35,17 +35,23 @@ function Get-ConfigPackage($Path) {
       Path = $Path
       Exists = $false
       Exclusions = @()
+      DisabledBaseExclusions = @()
       Overrides = @()
     }
   }
 
   $exclusionsJson = Read-JsonFile $exclusionsPath
   $overridesJson = Read-JsonFile $overridesPath
+  $disabledBaseExclusions = @()
+  if ($null -ne $exclusionsJson.disabledBaseExclusions) {
+    $disabledBaseExclusions = @($exclusionsJson.disabledBaseExclusions)
+  }
 
   return [pscustomobject]@{
     Path = $Path
     Exists = $true
     Exclusions = @($exclusionsJson.exclusions)
+    DisabledBaseExclusions = @($disabledBaseExclusions)
     Overrides = @($overridesJson.overrides)
   }
 }
@@ -89,11 +95,31 @@ function Merge-Overrides($Packages) {
   return @($merged.Values)
 }
 
+function Get-ApimApiPathsByName() {
+  $apimCompositionPath = Join-Path $repoRoot "infra/terraform/modules/apim-composition/main.tf"
+  if (!(Test-Path $apimCompositionPath)) {
+    throw "Missing APIM composition file: $apimCompositionPath"
+  }
+
+  $apimComposition = Get-Content $apimCompositionPath -Raw
+  $pathsByName = @{}
+  foreach ($match in [regex]::Matches($apimComposition, '(?ms)^\s{4}[A-Za-z0-9_-]+\s*=\s*\{\s*name\s*=\s*"([^"]+)".*?^\s*path\s*=\s*"([^"]+)"')) {
+    $pathsByName[$match.Groups[1].Value] = $match.Groups[2].Value
+  }
+
+  return $pathsByName
+}
+
+function Get-ApiPathPattern($ApimPath) {
+  return "/$ApimPath/*"
+}
+
 if (!(Test-Path $apiPolicyPath)) {
   throw "Missing API policy registry: $apiPolicyPath"
 }
 
 $apiPolicyConfig = Read-JsonFile $apiPolicyPath
+$apimApiPathsByName = Get-ApimApiPathsByName
 $basePackage = Get-ConfigPackage (Join-Path $configRoot "base")
 $environmentPackage = Get-ConfigPackage (Join-Path $configRoot $Environment)
 $apiProperties = @()
@@ -103,12 +129,12 @@ if ($null -ne $apiPolicyConfig.apiPolicies) {
 
 $results = @()
 
-if (@($apiPolicyConfig.base.pathPatterns).Count -gt 0) {
+if ($apiPolicyConfig.base.enabled -eq $true) {
   $basePackages = @($basePackage, $environmentPackage)
   $results += [pscustomobject]@{
     policy = "base"
     environment = $Environment
-    pathPatterns = @($apiPolicyConfig.base.pathPatterns)
+    pathPatterns = @("/*")
     configSources = @($basePackages | Where-Object { $_.Exists } | ForEach-Object { Resolve-Path -Relative $_.Path })
     inheritedBaseExclusions = @($basePackage.Exclusions).Count
     disabledBaseExclusions = @()
@@ -120,15 +146,13 @@ if (@($apiPolicyConfig.base.pathPatterns).Count -gt 0) {
 foreach ($api in $apiProperties) {
   $apiPackage = Get-ConfigPackage (Join-Path $configRoot "$Environment/apis/$($api.Name)")
   $packages = @($basePackage, $environmentPackage, $apiPackage)
-  $disabledExclusions = @()
-  if ($null -ne $api.Value.disabledBaseExclusions) {
-    $disabledExclusions = @($api.Value.disabledBaseExclusions)
-  }
+  $apiPathPattern = Get-ApiPathPattern ($apimApiPathsByName[$api.Value.apimApiName])
+  $disabledExclusions = @($apiPackage.DisabledBaseExclusions)
 
   $results += [pscustomobject]@{
     policy = $api.Name
     environment = $Environment
-    pathPatterns = @($api.Value.pathPatterns)
+    pathPatterns = @($apiPathPattern)
     configSources = @($packages | Where-Object { $_.Exists } | ForEach-Object { Resolve-Path -Relative $_.Path })
     inheritedBaseExclusions = @($basePackage.Exclusions).Count
     disabledBaseExclusions = @($disabledExclusions)

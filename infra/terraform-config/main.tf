@@ -15,9 +15,6 @@ locals {
   api_waf_policy_ids = {
     for api_name, policy_name in local.api_waf_policy_names : api_name => "/subscriptions/${var.subscription_id}/resourceGroups/${var.resource_group_name}/providers/Microsoft.Network/frontDoorWebApplicationFirewallPolicies/${policy_name}"
   }
-  disabled_base_exclusions = {
-    for api_name, policy in try(local.waf_api_policy_config.apiPolicies, {}) : api_name => try(policy.disabledBaseExclusions, [])
-  }
 }
 
 import {
@@ -44,5 +41,4 @@ module "api_waf_rules" {
   resource_group_name = var.resource_group_name
   waf_mode            = var.waf_mode
   waf_config_paths    = [local.base_waf_config_path, local.env_waf_config_path, "${path.root}/../../config/waf/${var.environment}/apis/${each.key}"]
-  disabled_exclusions = local.disabled_base_exclusions[each.key]
 }

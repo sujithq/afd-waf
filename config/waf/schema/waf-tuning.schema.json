@@ -3,6 +3,21 @@
   "title": "WAF tuning package",
   "type": "object",
   "required": ["metadata", "exclusions"],
+  "$defs": {
+    "exclusion": {
+      "type": "object",
+      "required": ["matchVariable", "selectorMatchOperator", "selector", "ruleSet", "ruleGroup", "ruleId"],
+      "additionalProperties": false,
+      "properties": {
+        "matchVariable": { "type": "string", "enum": ["QueryStringArgNames"] },
+        "selectorMatchOperator": { "type": "string", "enum": ["Equals"] },
+        "selector": { "type": "string" },
+        "ruleSet": { "type": "string" },
+        "ruleGroup": { "type": "string" },
+        "ruleId": { "type": "string" }
+      }
+    }
+  },
   "properties": {
     "metadata": {
       "type": "object",
@@ -16,18 +31,12 @@
     },
     "exclusions": {
       "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["matchVariable", "selectorMatchOperator", "selector", "ruleSet", "ruleGroup", "ruleId"],
-        "properties": {
-          "matchVariable": { "type": "string", "enum": ["QueryStringArgNames"] },
-          "selectorMatchOperator": { "type": "string", "enum": ["Equals"] },
-          "selector": { "type": "string" },
-          "ruleSet": { "type": "string" },
-          "ruleGroup": { "type": "string" },
-          "ruleId": { "type": "string" }
-        }
-      }
+      "items": { "$ref": "#/$defs/exclusion" }
+    },
+    "disabledBaseExclusions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/exclusion" },
+      "uniqueItems": true
     }
   }
 }

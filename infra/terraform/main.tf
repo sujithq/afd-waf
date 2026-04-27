@@ -5,13 +5,11 @@ resource "azurerm_resource_group" "main" {
 
 locals {
   waf_api_policy_config = jsondecode(file("${path.root}/../../config/waf/api-policies.json"))
-  base_waf_path_patterns = try(
-    local.waf_api_policy_config.base.pathPatterns,
-    ["/*"]
-  )
+
+  base_waf_path_patterns = try(local.waf_api_policy_config.base.enabled, false) ? ["/*"] : []
   api_waf_policies = {
     for api_name, policy in try(local.waf_api_policy_config.apiPolicies, {}) : api_name => {
-      path_patterns = policy.pathPatterns
+      path_patterns = ["/${module.apim.api_paths_by_name[policy.apimApiName]}/*"]
     }
   }
 }

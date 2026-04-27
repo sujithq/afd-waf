@@ -1,29 +1,13 @@
 {
   "base": {
-    "pathPatterns": []
+    "enabled": false
   },
   "apiPolicies": {
     "api1": {
-      "apimApiName": "odata-sap-1",
-      "pathPatterns": [
-        "/odata1/*"
-      ],
-      "disabledBaseExclusions": [
-        {
-          "matchVariable": "QueryStringArgNames",
-          "selectorMatchOperator": "Equals",
-          "selector": "$top",
-          "ruleSet": "Microsoft_DefaultRuleSet_2.1",
-          "ruleGroup": "SQLI",
-          "ruleId": "942100"
-        }
-      ]
+      "apimApiName": "odata-sap-1"
     },
     "api2": {
-      "apimApiName": "odata-sap-2",
-      "pathPatterns": [
-        "/odata2/*"
-      ]
+      "apimApiName": "odata-sap-2"
     }
   }
 }

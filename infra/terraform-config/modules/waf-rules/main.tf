@@ -1,8 +1,12 @@
 locals {
   config_paths = [for path in var.waf_config_paths : path if fileexists("${path}/exclusions.json") && fileexists("${path}/rule-overrides.json")]
 
+  disabled_exclusions = flatten([
+    for path in local.config_paths : try(jsondecode(file("${path}/exclusions.json")).disabledBaseExclusions, [])
+  ])
+
   disabled_exclusion_keys = toset([
-    for exclusion in var.disabled_exclusions : "${exclusion.matchVariable}|${exclusion.selectorMatchOperator}|${exclusion.selector}|${exclusion.ruleSet}|${exclusion.ruleGroup}|${exclusion.ruleId}"
+    for exclusion in local.disabled_exclusions : "${exclusion.matchVariable}|${exclusion.selectorMatchOperator}|${exclusion.selector}|${exclusion.ruleSet}|${exclusion.ruleGroup}|${exclusion.ruleId}"
   ])
 
   merged_exclusions = distinct(flatten([
