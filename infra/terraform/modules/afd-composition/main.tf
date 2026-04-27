@@ -1,4 +1,8 @@
 # avm-id: terraform-afd-composition
+locals {
+  apim_origin_host = trimsuffix(replace(var.apim_gateway_host, "https://", ""), "/")
+}
+
 module "afd" {
   source  = "Azure/avm-res-cdn-profile/azurerm"
   version = "0.1.9"
@@ -40,8 +44,8 @@ module "afd" {
     apim_origin = {
       name                           = "apim-origin"
       origin_group_key               = "apim_group"
-      host_name                      = replace(var.apim_gateway_host, "https://", "")
-      origin_host_header             = replace(var.apim_gateway_host, "https://", "")
+      host_name                      = local.apim_origin_host
+      origin_host_header             = local.apim_origin_host
       http_port                      = 80
       https_port                     = 443
       enabled                        = true
