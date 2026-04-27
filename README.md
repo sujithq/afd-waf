@@ -9,7 +9,9 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
 
 ## Repository layout
 - infra/bicep: Bicep AVM composition.
+- infra/bicep-config: Bicep WAF configuration deployment.
 - infra/terraform: Terraform AVM composition.
+- infra/terraform-config: Terraform WAF configuration deployment.
 - infra/avm/manifest.json: AVM module intent and version pin manifest.
 - config/waf: environment tuning payloads and schema.
 - .github/workflows: CI and CD automation.
@@ -26,9 +28,9 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
 
 All workflows support manual triggering (`workflow_dispatch`):
 
-1. **Bootstrap** - One-time setup for Terraform backend storage
+1. **Bootstrap** - One-time setup for Terraform backend storage and backend RBAC
 2. **Infra Deploy** - Deploys Azure infrastructure (AFD, WAF, APIM)
-3. **Config Deploy** - Applies WAF configuration
+3. **Config Deploy** - Applies WAF configuration with Terraform or Bicep
 4. **Infra Validate** - Validates infrastructure code (runs on PR and manual trigger)
 5. **Config Validate** - Validates WAF configuration (runs on PR and manual trigger)
 6. **Config Rollback** - Emergency rollback to known-good configuration
@@ -51,7 +53,8 @@ Workflows can be chained for streamlined deployment:
 
 1. **Run Bootstrap workflow** (one-time setup):
    - Go to **Actions → Bootstrap** in GitHub
-   - Provide location, backend resource group, and storage account name
+   - Provide location and backend resource group
+   - Provide a backend storage account name or leave it blank to auto-generate one
    - Note the output values for GitHub variables
 
 2. **Configure GitHub variables** (see [Quick Start with Workflows](GETTING-STARTED.md#quick-start-with-workflows)):
@@ -66,6 +69,7 @@ Workflows can be chained for streamlined deployment:
 4. **Run Config Deploy workflow** (if not chained):
    - Go to **Actions → Config Deploy**
    - Select environment
+   - Select the same IaC stack you used for Infra Deploy (`terraform` or `bicep`)
 
 #### Option 2: Local Development with Manual Steps
 
@@ -78,16 +82,17 @@ Workflows can be chained for streamlined deployment:
    ```bash
    # Validate Bicep
    az bicep build --file infra/bicep/main.bicep
+   az bicep build --file infra/bicep-config/main.bicep
 
    # Validate Terraform
    cd infra/terraform
-   terraform init
+   terraform init -backend=false
    terraform validate
    terraform plan -var-file=env/dev.tfvars -out=tfplan
    ```
 
 3. **Push to branch and open PR**:
-   - Infra Validate workflow runs automatically (lint, schema, what-if)
+   - Infra Validate workflow runs automatically (Bicep build, Terraform fmt/validate, AVM governance)
    - Review CI outputs and lock file diff
    - Merge when all checks pass
 
@@ -100,14 +105,15 @@ Workflows can be chained for streamlined deployment:
 
 5. **Deploy WAF configuration** (separate workflow):
    - Run **Config Deploy** workflow targeting the same environment
-   - Imports the WAF policy created by the infra stack and applies managed rules from JSON
-   - Triggered automatically on pushes to `main` that modify `config/waf/**` or `infra/terraform-config/**`
+   - Use the same IaC stack as the infrastructure deployment (`terraform` or `bicep`)
+   - Terraform imports the WAF policy created by the infra stack and applies managed rules from JSON
+   - Bicep applies the WAF rule-group overrides from the same JSON config files
    - Config-only changes never touch AFD, APIM, or other infrastructure
 
 6. **Update WAF configuration** (ongoing):
    - Edit `config/waf/{environment}/exclusions.json` or `rule-overrides.json`
    - Push changes and open PR; Config Validate workflow checks schema and guardrails
-   - Merge to `main` — Config Deploy workflow runs automatically
+   - Merge to `main`, then run Config Deploy manually for the target environment, or run Infra Deploy with `run_config_deploy=true`
    - Only the WAF policy managed rules are updated; infrastructure is untouched
 
 7. **Smoke test and evidence collection**:
@@ -126,6 +132,7 @@ This repository uses a **two-stack IaC model** with separate Terraform configura
 
 - **Infra stack** (`infra/terraform/`): Provisions all Azure resources. The WAF policy is created bare (no rules). `lifecycle { ignore_changes = [managed_rule, custom_rule, mode, enabled] }` ensures that config-stack rule and mode changes are never reverted by an infra apply.
 - **Config stack** (`infra/terraform-config/`): Imports the WAF policy by ID and applies `managed_rule` blocks built from the JSON files in `config/waf/{env}/`. Runs independently without touching infrastructure.
+- **Bicep config stack** (`infra/bicep-config/`): Applies the same WAF rule-group overrides from JSON when Config Deploy runs with `iac=bicep`.
 - **WAF config JSON** (`config/waf/{env}/exclusions.json`, `rule-overrides.json`): Source of truth for rule exclusions and action overrides. Terraform reads these on every config apply.
 
 **Benefits of separation:**

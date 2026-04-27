@@ -530,10 +530,10 @@ APIM_PUBLISHER_NAME: Your Name
 1. Go to **Actions → Bootstrap** in your GitHub repository
 2. Click **Run workflow**
 3. Fill in the parameters:
-   - **location**: `swedencentral` (or your preferred region)
-   - **backend_rg**: `afd-waf-tfstate-rg`
-   - **backend_sa**: `afdwaftf<unique-id>` (must be globally unique, lowercase, alphanumeric)
-  - **target_sp_object_id** (optional): service principal object ID to grant backend RBAC to. If omitted, the workflow resolves it from `AZURE_CLIENT_ID`.
+    - **location**: `swedencentral` (or your preferred region)
+    - **backend_rg**: `afd-waf-tfstate-rg`
+    - **backend_sa**: optional. Use `afdwaftf<unique-id>` or leave blank to auto-generate a globally unique storage account name.
+    - **target_sp_object_id** (optional): service principal object ID to grant backend RBAC to. If omitted, the workflow resolves it from `AZURE_CLIENT_ID`.
 4. Click **Run workflow**
 
 **IMPORTANT - Manual Configuration Required:**
@@ -576,7 +576,8 @@ If you didn't enable automatic config deployment, or want to update WAF configur
 1. Go to **Actions → Config Deploy**
 2. Click **Run workflow**
 3. Select **environment**: `dev`
-4. Click **Run workflow**
+4. Select **iac**: use the same IaC stack you used for Infra Deploy (`terraform` or `bicep`)
+5. Click **Run workflow**
 
 ### Workflow Chaining
 
@@ -590,10 +591,9 @@ The workflows can be chained together:
 There are two ways workflows communicate:
 
 1. **Chained Workflows (workflow_call):**
-   - When workflows call each other programmatically
-   - Data is passed via workflow outputs/inputs automatically
-   - Example: Bootstrap outputs → (automatically passed) → Infra Deploy inputs
-   - No manual configuration needed
+  - When workflows call each other programmatically
+  - Data can be passed via workflow outputs/inputs when a caller workflow wires them together
+  - Example: Infra Deploy passes the selected `iac` value to Config Deploy when `run_config_deploy=true`
 
 2. **Manual Workflows (workflow_dispatch):**
    - When you trigger workflows manually from the Actions UI
@@ -606,6 +606,7 @@ There are two ways workflows communicate:
 - Bootstrap workflow grants backend data-plane RBAC for Terraform state access
 - For manual execution, you must set the output values as GitHub repository variables
 - Infra Deploy and Config Deploy read from repository variables (`vars.TF_BACKEND_RG`, `vars.TF_BACKEND_SA`)
+- Config Deploy supports both Terraform and Bicep; select the same `iac` value used for Infra Deploy.
 
 ### Manual Validation
 
@@ -657,29 +658,29 @@ APIM_PUBLISHER_EMAIL: devops@contoso.com  (your email)
 APIM_PUBLISHER_NAME: Contoso DevOps
 ```
 
-> **Required for Infra Deploy (terraform)**: `TF_BACKEND_RG` and `TF_BACKEND_SA` must be set, otherwise `terraform init` fails with backend errors such as missing `resource_group_name`.
+> **Required for Terraform workflows**: `TF_BACKEND_RG` and `TF_BACKEND_SA` must be set for Infra Deploy (`iac=terraform`) and Config Deploy (`iac=terraform`), otherwise `terraform init` fails with backend errors such as missing `resource_group_name`.
 
 > **Note — production practice**: Sharing a single app registration and subscription across all environments is fine for this demo repo. In a real-world setup, each environment (`dev`, `test`, `prod`) should have its **own app registration** (its own `AZURE_CLIENT_ID` federated credential), ideally its **own Azure subscription**, and possibly a separate `AZURE_TENANT_ID`. In that case, move `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` from repository variables into each environment's variables instead.
 
 **Dev environment variables** (go to **Settings → Environments → dev → Environment variables**):
 ```
-AZURE_RESOURCE_GROUP: afd-waf-dev-rg
-AFD_BASE_URL: https://afd-dev-<unique-suffix>.azurefd.net  (set after first deployment)
-WAF_POLICY_NAME: afd-waf-dev-policy
+AZURE_RESOURCE_GROUP: acafd-dev-rg
+AFD_BASE_URL: https://<afd-endpoint-hostname>  (set after first deployment)
+WAF_POLICY_NAME: acafdwafdev  (Terraform) or acafd-waf-dev (Bicep)
 ```
 
 **Test environment variables** (go to **Settings → Environments → test → Environment variables**):
 ```
-AZURE_RESOURCE_GROUP: afd-waf-test-rg
-AFD_BASE_URL: https://afd-test-<unique-suffix>.azurefd.net
-WAF_POLICY_NAME: afd-waf-test-policy
+AZURE_RESOURCE_GROUP: acafd-test-rg
+AFD_BASE_URL: https://<afd-endpoint-hostname>
+WAF_POLICY_NAME: acafdwaftest  (Terraform) or acafd-waf-test (Bicep)
 ```
 
 **Prod environment variables** (go to **Settings → Environments → prod → Environment variables**):
 ```
-AZURE_RESOURCE_GROUP: afd-waf-prod-rg
-AFD_BASE_URL: https://afd-prod-<unique-suffix>.azurefd.net
-WAF_POLICY_NAME: afd-waf-prod-policy
+AZURE_RESOURCE_GROUP: acafd-prod-rg
+AFD_BASE_URL: https://<afd-endpoint-hostname>
+WAF_POLICY_NAME: acafdwafprod  (Terraform) or acafd-waf-prod (Bicep)
 ```
 
 ### 3. Verify No Secrets Are Needed
@@ -919,17 +920,22 @@ pwsh -File scripts/smoke-odata.ps1 \
 **PowerShell**:
 ```powershell
 # Check WAF policy mode (should be Detection for dev)
+$NAME_PREFIX = "acafd"
+$ENVIRONMENT = "dev"
+$RESOURCE_GROUP = "$NAME_PREFIX-$ENVIRONMENT-rg"
+$WAF_POLICY_NAME = "${NAME_PREFIX}waf${ENVIRONMENT}"  # Terraform; use "$NAME_PREFIX-waf-$ENVIRONMENT" for Bicep
+
 az network front-door waf-policy show `
-  --resource-group afd-waf-dev-rg `
-  --name afd-waf-dev-policy `
+  --resource-group $RESOURCE_GROUP `
+  --name $WAF_POLICY_NAME `
   --query enabledState
 
 # Expected output: "Enabled"
 
 # Check WAF mode (detection vs. prevention)
 az network front-door waf-policy show `
-  --resource-group afd-waf-dev-rg `
-  --name afd-waf-dev-policy `
+  --resource-group $RESOURCE_GROUP `
+  --name $WAF_POLICY_NAME `
   --query mode
 
 # Expected output: "Detection"
@@ -938,17 +944,22 @@ az network front-door waf-policy show `
 **Bash**:
 ```bash
 # Check WAF policy mode (should be Detection for dev)
+NAME_PREFIX="acafd"
+ENVIRONMENT="dev"
+RESOURCE_GROUP="${NAME_PREFIX}-${ENVIRONMENT}-rg"
+WAF_POLICY_NAME="${NAME_PREFIX}waf${ENVIRONMENT}"  # Terraform; use "${NAME_PREFIX}-waf-${ENVIRONMENT}" for Bicep
+
 az network front-door waf-policy show \
-  --resource-group afd-waf-dev-rg \
-  --name afd-waf-dev-policy \
+  --resource-group "$RESOURCE_GROUP" \
+  --name "$WAF_POLICY_NAME" \
   --query enabledState
 
 # Expected output: "Enabled"
 
 # Check WAF mode (detection vs. prevention)
 az network front-door waf-policy show \
-  --resource-group afd-waf-dev-rg \
-  --name afd-waf-dev-policy \
+  --resource-group "$RESOURCE_GROUP" \
+  --name "$WAF_POLICY_NAME" \
   --query mode
 
 # Expected output: "Detection"
@@ -1023,14 +1034,16 @@ After successful dev deployment:
 1. **Deploy to test and prod** using the same Infra Deploy workflow (select different environments)
 
 2. **Run Config Deploy** after every Infra Deploy to apply WAF managed rules:
-   - Trigger the **Config Deploy** workflow manually for the same environment
-   - It imports the WAF policy (by ID derived from naming convention) and applies managed rules from `config/waf/{env}/exclusions.json`
+  - Trigger the **Config Deploy** workflow manually for the same environment
+  - Select the same `iac` value used for Infra Deploy
+  - Terraform imports the WAF policy and applies managed rules from `config/waf/{env}/exclusions.json`
+  - Bicep applies rule-group overrides from the same JSON config files
 
 3. **Update WAF config** for future changes:
-   - Modify `config/waf/{env}/exclusions.json` or `rule-overrides.json`
-   - Push changes; Config Validate workflow checks schema and guardrails on PR
-   - Merge to `main` — Config Deploy workflow triggers automatically
-   - Only WAF managed rules are updated; AFD, APIM, and other infrastructure remain untouched
+  - Modify `config/waf/{env}/exclusions.json` or `rule-overrides.json`
+  - Push changes; Config Validate workflow checks schema and guardrails on PR
+  - Merge to `main`, then run Config Deploy manually for the target environment, or run Infra Deploy with `run_config_deploy=true`
+  - Only WAF managed rules are updated; AFD, APIM, and other infrastructure remain untouched
 
 4. **Promote to Prevention mode**:
    - Update `waf_mode = "Prevention"` in `infra/terraform-config/env/prod.tfvars`

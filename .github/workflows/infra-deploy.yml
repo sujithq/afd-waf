@@ -12,7 +12,7 @@ on:
         description: IaC stack
         required: true
         type: choice
-        options: [bicep, terraform]
+        options: [terraform, bicep]
       run_config_deploy:
         description: Run Config Deploy after infrastructure deployment
         required: false
