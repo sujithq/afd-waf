@@ -22,7 +22,7 @@ This repository implements an AVM-first, dual-IaC approach for Azure Front Door 
 
 > **New to this repo?** Start with [GETTING-STARTED.md](GETTING-STARTED.md) for a complete step-by-step walkthrough including local setup, Azure OIDC federation, GitHub configuration, and first deployment. This guide takes ~45–60 minutes and covers everything from scratch.
 
-> **Quick Start Option:** If you prefer to use GitHub workflows instead of local setup, see the [Quick Start with Workflows](GETTING-STARTED.md#quick-start-with-workflows) section after completing OIDC setup. You can bootstrap, deploy infrastructure, and apply configuration entirely through GitHub Actions.
+> **Quick Start Option:** If you prefer to use GitHub workflows instead of local setup, see the [Quick Start with Workflows](GETTING-STARTED.md#quick-start-with-workflows) section after completing OIDC setup. You can bootstrap the Terraform backend, deploy infrastructure, and apply WAF configuration through GitHub Actions.
 
 ### Available Workflows
 
@@ -45,7 +45,8 @@ Workflows can be chained for streamlined deployment:
 - Bicep CLI: `>= 0.42.1` (local)
 - Azure CLI: latest (workflows auto-upgrade at runtime)
 - PowerShell 7+ (for local helper scripts)
-- GitHub OIDC federated credentials configured (see docs/devops-setup.md for step-by-step setup)
+- GitHub OIDC federated credentials configured before running workflows. The Bootstrap workflow needs the main-branch federated credential; deploy workflows need the `dev`, `test`, and `prod` environment federated credentials.
+- For the tested Terraform workflow path, the GitHub service principal needs subscription-scope `Contributor`. If the same principal runs Bootstrap end-to-end, it also needs permission to create role assignments, such as `User Access Administrator` during bootstrap.
 
 ### Deployment flow
 
@@ -55,6 +56,7 @@ Workflows can be chained for streamlined deployment:
    - Go to **Actions → Bootstrap** in GitHub
    - Provide location and backend resource group
    - Provide a backend storage account name or leave it blank to auto-generate one
+   - Bootstrap creates the backend resource group, storage account, `tfstate` container, and backend RBAC
    - Note the output values for GitHub variables
 
 2. **Configure GitHub variables** (see [Quick Start with Workflows](GETTING-STARTED.md#quick-start-with-workflows)):
@@ -63,13 +65,13 @@ Workflows can be chained for streamlined deployment:
 
 3. **Run Infra Deploy workflow**:
    - Go to **Actions → Infra Deploy**
-   - Select environment and IaC stack (terraform/bicep)
+   - Select environment and `iac=terraform` for the tested path
    - Enable `run_config_deploy` to automatically run config deployment afterwards
 
 4. **Run Config Deploy workflow** (if not chained):
    - Go to **Actions → Config Deploy**
    - Select environment
-   - Select the same IaC stack you used for Infra Deploy (`terraform` or `bicep`)
+   - Select `iac=terraform` for the tested path
 
 #### Option 2: Local Development with Manual Steps
 

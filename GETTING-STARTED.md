@@ -8,14 +8,16 @@ This guide walks you through setting up this repository from scratch, from local
 
 **Note**: Most commands are shell-agnostic and work in both PowerShell and bash. Where differences exist (e.g., variable assignment syntax), both variants are shown.
 
+**Terraform focus**: This guide follows the Terraform path because it has been tested end to end. Bicep assets exist in the repo, but the recommended first setup path is Terraform.
+
 **Quick Start Option**: If you prefer to use GitHub workflows instead of local setup, skip to [Quick Start with Workflows](#quick-start-with-workflows) after completing the OIDC setup.
 
 **Table of Contents**
 1. [Prerequisites](#prerequisites)
-2. [GitHub OIDC Federation Setup](#github-oidc-federation-setup)
-3. [Quick Start with Workflows](#quick-start-with-workflows)
-4. [Local Environment Setup](#local-environment-setup)
-5. [Azure Subscription Setup](#azure-subscription-setup)
+2. [Local Environment Setup](#local-environment-setup)
+3. [Azure Subscription Setup](#azure-subscription-setup)
+4. [GitHub OIDC Federation Setup](#github-oidc-federation-setup)
+5. [Quick Start with Workflows](#quick-start-with-workflows)
 6. [GitHub Repository Configuration](#github-repository-configuration)
 7. [First Local Validation](#first-local-validation)
 8. [First Deployment to Dev](#first-deployment-to-dev)
@@ -27,7 +29,7 @@ This guide walks you through setting up this repository from scratch, from local
 
 Before starting, ensure you have:
 
-- **Azure subscription**: With admin or Owner access to create resource groups, app registrations, and role assignments
+- **Azure subscription**: With admin or Owner access for initial setup. For workflow Bootstrap to complete end-to-end, the GitHub service principal needs permission to create backend resources and role assignments (for example, `Contributor` plus `User Access Administrator` at subscription scope, or `Owner` during bootstrap).
 - **GitHub account and repository**: Admin access to configure secrets, variables, and environments
 - **Local machine**: Windows 10+ with PowerShell 7+, or macOS/Linux with bash
 
@@ -111,114 +113,72 @@ az account show
 
 ## Azure Subscription Setup
 
-### 1. Create Resource Groups
+For the tested Terraform path, there are two setup tracks:
 
-Create one resource group per environment (dev, test, prod):
+- **Workflow setup**: use the **Bootstrap** workflow after OIDC is configured. Bootstrap creates the Terraform backend resource group, storage account, `tfstate` container, and backend data-plane RBAC.
+- **Manual setup**: create the Terraform backend yourself with Azure CLI, then run Terraform locally or through GitHub Actions.
+
+Application resource groups such as `acafd-dev-rg`, `acafd-test-rg`, and `acafd-prod-rg` are Terraform-owned. Do not pre-create them for the normal Terraform workflow unless you are intentionally importing existing resource groups.
+
+### Manual Terraform Backend Bootstrap
+
+Skip this section when using the **Bootstrap** workflow. Use it only when you want a fully manual backend setup.
 
 **PowerShell**:
 ```powershell
-# Set variables for convenience
 $SUBSCRIPTION_ID = (az account show --query id -o tsv)
-$LOCATION = "swedencentral"  # Change to your preferred region
+$LOCATION = "swedencentral"
+$TF_BACKEND_RG = "afd-waf-tfstate-rg"
+$TF_BACKEND_SA = "afdwaftf$(Get-Date -UFormat "%s")"
 
-# Create dev resource group
 az group create `
-  --name afd-waf-dev-rg `
+  --name $TF_BACKEND_RG `
   --location $LOCATION
 
-# Create test resource group
-az group create `
-  --name afd-waf-test-rg `
-  --location $LOCATION
-
-# Create prod resource group
-az group create `
-  --name afd-waf-prod-rg `
-  --location $LOCATION
-
-# List created groups
-az group list --query "[].name" -o table
-```
-
-**Bash**:
-```bash
-# Set variables for convenience
-SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-LOCATION="swedencentral"  # Change to your preferred region
-
-# Create dev resource group
-az group create \
-  --name afd-waf-dev-rg \
-  --location $LOCATION
-
-# Create test resource group
-az group create \
-  --name afd-waf-test-rg \
-  --location $LOCATION
-
-# Create prod resource group
-az group create \
-  --name afd-waf-prod-rg \
-  --location $LOCATION
-
-# List created groups
-az group list --query "[].name" -o table
-```
-
-### 2. Create Storage Account for Terraform Remote State (Optional but Recommended)
-
-**PowerShell**:
-```powershell
-# Storage account names must be globally unique and lowercase
-$TIMESTAMP = Get-Date -UFormat "%s"
-$STORAGE_ACCOUNT = "afdwaftf$TIMESTAMP"
-
-# Create storage account for Terraform state
 az storage account create `
-  --name $STORAGE_ACCOUNT `
-  --resource-group afd-waf-dev-rg `
+  --name $TF_BACKEND_SA `
+  --resource-group $TF_BACKEND_RG `
   --location $LOCATION `
-  --sku Standard_LRS
+  --sku Standard_LRS `
+  --allow-shared-key-access false
 
-# Create storage container
 az storage container create `
-  --account-name $STORAGE_ACCOUNT `
+  --account-name $TF_BACKEND_SA `
   --name tfstate `
   --auth-mode login
 
-Write-Host "Storage Account: $STORAGE_ACCOUNT"
-Write-Host "Connection string:"
-az storage account show-connection-string `
-  --name $STORAGE_ACCOUNT `
-  --resource-group afd-waf-dev-rg `
-  --query connectionString -o tsv
+Write-Host "TF_BACKEND_RG=$TF_BACKEND_RG"
+Write-Host "TF_BACKEND_SA=$TF_BACKEND_SA"
 ```
 
 **Bash**:
 ```bash
-# Storage account names must be globally unique and lowercase
-STORAGE_ACCOUNT="afdwaftf$(date +%s)"
+SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+LOCATION="swedencentral"
+TF_BACKEND_RG="afd-waf-tfstate-rg"
+TF_BACKEND_SA="afdwaftf$(date +%s)"
 
-# Create storage account for Terraform state
+az group create \
+  --name "$TF_BACKEND_RG" \
+  --location "$LOCATION"
+
 az storage account create \
-  --name $STORAGE_ACCOUNT \
-  --resource-group afd-waf-dev-rg \
-  --location $LOCATION \
-  --sku Standard_LRS
+  --name "$TF_BACKEND_SA" \
+  --resource-group "$TF_BACKEND_RG" \
+  --location "$LOCATION" \
+  --sku Standard_LRS \
+  --allow-shared-key-access false
 
-# Create storage container
 az storage container create \
-  --account-name $STORAGE_ACCOUNT \
+  --account-name "$TF_BACKEND_SA" \
   --name tfstate \
   --auth-mode login
 
-echo "Storage Account: $STORAGE_ACCOUNT"
-echo "Connection string:"
-az storage account show-connection-string \
-  --name $STORAGE_ACCOUNT \
-  --resource-group afd-waf-dev-rg \
-  --query connectionString -o tsv
+echo "TF_BACKEND_RG=$TF_BACKEND_RG"
+echo "TF_BACKEND_SA=$TF_BACKEND_SA"
 ```
+
+If GitHub Actions will use this manually created backend, grant the deployment service principal `Storage Blob Data Contributor` on the backend storage account. The Bootstrap workflow does this automatically.
 
 ---
 
@@ -328,7 +288,7 @@ az ad app federated-credential create --id $APP_ID --parameters "@$env:TEMP\fic.
 } | ConvertTo-Json | Out-File "$env:TEMP\fic.json" -Encoding utf8
 az ad app federated-credential create --id $APP_ID --parameters "@$env:TEMP\fic.json"
 
-# For PR/merge-to-main branch (optional)
+# For Bootstrap and main-branch workflow runs
 @{
   name      = "afd-waf-github-main"
   issuer    = "https://token.actions.githubusercontent.com"
@@ -382,7 +342,7 @@ az ad app federated-credential create \
 EOF
 )"
 
-# For PR/merge-to-main branch (optional)
+# For Bootstrap and main-branch workflow runs
 az ad app federated-credential create \
   --id "$APP_ID" \
   --parameters "$(cat <<EOF
@@ -401,42 +361,28 @@ az ad app federated-credential list --id "$APP_ID"
 
 ### 4. Grant Azure Roles to the Service Principal
 
-Grant the service principal only the roles it needs per environment (least privilege).
+For the tested Terraform workflow path, Terraform creates the environment resource groups (`${TF_NAME_PREFIX}-${environment}-rg`) and the resources inside them. Grant the service principal subscription-scope `Contributor` so Terraform can create those resource groups.
 
-> **Note on resource group names**: Terraform creates resource groups named `${TF_NAME_PREFIX}-${environment}-rg` (e.g. `acafd-dev-rg`). Role assignments must target those names, **not** the manually created `afd-waf-*-rg` groups. For DEV, Terraform also creates the resource group itself, so the assignment must be at **subscription scope**.
+If the same service principal will run the **Bootstrap** workflow end-to-end, it also needs permission to create the backend storage role assignment. Grant `User Access Administrator` during bootstrap, or have an Azure admin run the backend `Storage Blob Data Contributor` assignment manually after backend creation.
 
 **PowerShell**:
 ```powershell
 # Get the service principal object ID
 $SP_OBJECT_ID = (az ad sp show --id $CLIENT_ID --query id -o tsv)
-$NAME_PREFIX = "acafd"  # must match TF_NAME_PREFIX / name_prefix in dev.tfvars
 
-# For DEV: Subscription scope — Terraform creates the resource group
+# Terraform path: subscription scope because Terraform creates acafd-<env>-rg
 az role assignment create `
   --assignee-object-id $SP_OBJECT_ID `
   --assignee-principal-type ServicePrincipal `
   --role "Contributor" `
   --scope "/subscriptions/$SUBSCRIPTION_ID"
 
-# For TEST: Restricted to necessary roles (resource group must already exist)
+# Required only if this service principal runs Bootstrap and creates backend RBAC
 az role assignment create `
   --assignee-object-id $SP_OBJECT_ID `
   --assignee-principal-type ServicePrincipal `
-  --role "CDN Profile Contributor" `
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NAME_PREFIX-test-rg"
-
-az role assignment create `
-  --assignee-object-id $SP_OBJECT_ID `
-  --assignee-principal-type ServicePrincipal `
-  --role "API Management Service Contributor" `
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NAME_PREFIX-test-rg"
-
-# For PROD: Minimal + approval gates (enforced in GitHub)
-az role assignment create `
-  --assignee-object-id $SP_OBJECT_ID `
-  --assignee-principal-type ServicePrincipal `
-  --role "CDN Profile Contributor" `
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NAME_PREFIX-prod-rg"
+  --role "User Access Administrator" `
+  --scope "/subscriptions/$SUBSCRIPTION_ID"
 
 # Verify role assignments
 az role assignment list `
@@ -453,34 +399,20 @@ az role assignment list `
 ```bash
 # Get the service principal object ID
 SP_OBJECT_ID=$(az ad sp show --id "$CLIENT_ID" --query id -o tsv)
-NAME_PREFIX="acafd"  # must match TF_NAME_PREFIX / name_prefix in dev.tfvars
 
-# For DEV: Subscription scope — Terraform creates the resource group
+# Terraform path: subscription scope because Terraform creates acafd-<env>-rg
 az role assignment create \
   --assignee-object-id "$SP_OBJECT_ID" \
   --assignee-principal-type ServicePrincipal \
   --role "Contributor" \
   --scope "/subscriptions/$SUBSCRIPTION_ID"
 
-# For TEST: Restricted to necessary roles (resource group must already exist)
+# Required only if this service principal runs Bootstrap and creates backend RBAC
 az role assignment create \
   --assignee-object-id "$SP_OBJECT_ID" \
   --assignee-principal-type ServicePrincipal \
-  --role "CDN Profile Contributor" \
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NAME_PREFIX-test-rg"
-
-az role assignment create \
-  --assignee-object-id "$SP_OBJECT_ID" \
-  --assignee-principal-type ServicePrincipal \
-  --role "API Management Service Contributor" \
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NAME_PREFIX-test-rg"
-
-# For PROD: Minimal + approval gates (enforced in GitHub)
-az role assignment create \
-  --assignee-object-id "$SP_OBJECT_ID" \
-  --assignee-principal-type ServicePrincipal \
-  --role "CDN Profile Contributor" \
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$NAME_PREFIX-prod-rg"
+  --role "User Access Administrator" \
+  --scope "/subscriptions/$SUBSCRIPTION_ID"
 
 # Verify role assignments
 az role assignment list \
@@ -499,13 +431,15 @@ az role assignment list \
 
 If you prefer to use GitHub Actions workflows instead of local setup, follow these streamlined steps after completing the OIDC Federation Setup above.
 
+Before running workflows, the Entra application, service principal, federated credentials, GitHub repository variables, and initial Azure RBAC assignments must exist. Bootstrap can create the Terraform backend, but it cannot create the identity that GitHub uses to sign in.
+
 ### Overview
 
 This repository provides automated workflows that you can trigger manually:
 
 1. **Bootstrap** - Creates Terraform backend storage and bootstraps backend RBAC (one-time setup)
-2. **Infra Deploy** - Deploys Azure infrastructure (AFD, WAF, APIM)
-3. **Config Deploy** - Applies WAF configuration
+2. **Infra Deploy** - Deploys Azure infrastructure with Terraform (AFD, WAF, APIM)
+3. **Config Deploy** - Applies WAF configuration with Terraform
 4. **Infra Validate** - Validates infrastructure code
 5. **Config Validate** - Validates WAF configuration
 
@@ -559,10 +493,7 @@ After the bootstrap workflow completes, you **must manually** add these GitHub r
 
 1. Go to **Actions → Infra Deploy**
 2. Click **Run workflow**
-3. Select:
-   - **environment**: `dev`
-   - **iac**: `terraform` (or `bicep`)
-   - **run_config_deploy**: `true` (to automatically run config deployment afterwards)
+3. Select **environment**: `dev`, **iac**: `terraform`, and **run_config_deploy**: `true` to automatically run config deployment afterwards.
 4. Click **Run workflow**
 
 This will:
@@ -576,7 +507,7 @@ If you didn't enable automatic config deployment, or want to update WAF configur
 1. Go to **Actions → Config Deploy**
 2. Click **Run workflow**
 3. Select **environment**: `dev`
-4. Select **iac**: use the same IaC stack you used for Infra Deploy (`terraform` or `bicep`)
+4. Select **iac**: `terraform`
 5. Click **Run workflow**
 
 ### Workflow Chaining
@@ -590,10 +521,7 @@ The workflows can be chained together:
 
 There are two ways workflows communicate:
 
-1. **Chained Workflows (workflow_call):**
-  - When workflows call each other programmatically
-  - Data can be passed via workflow outputs/inputs when a caller workflow wires them together
-  - Example: Infra Deploy passes the selected `iac` value to Config Deploy when `run_config_deploy=true`
+1. **Chained Workflows (workflow_call):** Workflows can call each other programmatically. Infra Deploy passes the selected `iac` value to Config Deploy when `run_config_deploy=true`.
 
 2. **Manual Workflows (workflow_dispatch):**
    - When you trigger workflows manually from the Actions UI
@@ -606,7 +534,7 @@ There are two ways workflows communicate:
 - Bootstrap workflow grants backend data-plane RBAC for Terraform state access
 - For manual execution, you must set the output values as GitHub repository variables
 - Infra Deploy and Config Deploy read from repository variables (`vars.TF_BACKEND_RG`, `vars.TF_BACKEND_SA`)
-- Config Deploy supports both Terraform and Bicep; select the same `iac` value used for Infra Deploy.
+- Config Deploy supports both Terraform and Bicep, but this guide uses `iac=terraform`.
 
 ### Manual Validation
 
@@ -666,21 +594,21 @@ APIM_PUBLISHER_NAME: Contoso DevOps
 ```
 AZURE_RESOURCE_GROUP: acafd-dev-rg
 AFD_BASE_URL: https://<afd-endpoint-hostname>  (set after first deployment)
-WAF_POLICY_NAME: acafdwafdev  (Terraform) or acafd-waf-dev (Bicep)
+WAF_POLICY_NAME: acafdwafdev
 ```
 
 **Test environment variables** (go to **Settings → Environments → test → Environment variables**):
 ```
 AZURE_RESOURCE_GROUP: acafd-test-rg
 AFD_BASE_URL: https://<afd-endpoint-hostname>
-WAF_POLICY_NAME: acafdwaftest  (Terraform) or acafd-waf-test (Bicep)
+WAF_POLICY_NAME: acafdwaftest
 ```
 
 **Prod environment variables** (go to **Settings → Environments → prod → Environment variables**):
 ```
 AZURE_RESOURCE_GROUP: acafd-prod-rg
 AFD_BASE_URL: https://<afd-endpoint-hostname>
-WAF_POLICY_NAME: acafdwafprod  (Terraform) or acafd-waf-prod (Bicep)
+WAF_POLICY_NAME: acafdwafprod
 ```
 
 ### 3. Verify No Secrets Are Needed
@@ -693,7 +621,7 @@ Confirm that under **Settings → Secrets and variables → Actions → Secrets*
 
 Before pushing to GitHub, validate your infrastructure code locally.
 
-### 1. Validate Bicep
+### 1. Validate Bicep (Optional)
 
 **PowerShell** or **bash**:
 ```bash
@@ -923,7 +851,7 @@ pwsh -File scripts/smoke-odata.ps1 \
 $NAME_PREFIX = "acafd"
 $ENVIRONMENT = "dev"
 $RESOURCE_GROUP = "$NAME_PREFIX-$ENVIRONMENT-rg"
-$WAF_POLICY_NAME = "${NAME_PREFIX}waf${ENVIRONMENT}"  # Terraform; use "$NAME_PREFIX-waf-$ENVIRONMENT" for Bicep
+$WAF_POLICY_NAME = "${NAME_PREFIX}waf${ENVIRONMENT}"
 
 az network front-door waf-policy show `
   --resource-group $RESOURCE_GROUP `
@@ -947,7 +875,7 @@ az network front-door waf-policy show `
 NAME_PREFIX="acafd"
 ENVIRONMENT="dev"
 RESOURCE_GROUP="${NAME_PREFIX}-${ENVIRONMENT}-rg"
-WAF_POLICY_NAME="${NAME_PREFIX}waf${ENVIRONMENT}"  # Terraform; use "${NAME_PREFIX}-waf-${ENVIRONMENT}" for Bicep
+WAF_POLICY_NAME="${NAME_PREFIX}waf${ENVIRONMENT}"
 
 az network front-door waf-policy show \
   --resource-group "$RESOURCE_GROUP" \
@@ -1033,17 +961,9 @@ After successful dev deployment:
 
 1. **Deploy to test and prod** using the same Infra Deploy workflow (select different environments)
 
-2. **Run Config Deploy** after every Infra Deploy to apply WAF managed rules:
-  - Trigger the **Config Deploy** workflow manually for the same environment
-  - Select the same `iac` value used for Infra Deploy
-  - Terraform imports the WAF policy and applies managed rules from `config/waf/{env}/exclusions.json`
-  - Bicep applies rule-group overrides from the same JSON config files
+2. **Run Config Deploy** after every Infra Deploy to apply WAF managed rules. Trigger the **Config Deploy** workflow manually for the same environment, select `iac=terraform`, and Terraform imports the WAF policy to apply managed rules from `config/waf/{env}/exclusions.json`.
 
-3. **Update WAF config** for future changes:
-  - Modify `config/waf/{env}/exclusions.json` or `rule-overrides.json`
-  - Push changes; Config Validate workflow checks schema and guardrails on PR
-  - Merge to `main`, then run Config Deploy manually for the target environment, or run Infra Deploy with `run_config_deploy=true`
-  - Only WAF managed rules are updated; AFD, APIM, and other infrastructure remain untouched
+3. **Update WAF config** for future changes. Modify `config/waf/{env}/exclusions.json` or `rule-overrides.json`, push changes so Config Validate checks schema and guardrails on PR, then merge to `main` and run Config Deploy manually for the target environment. Only WAF managed rules are updated; AFD, APIM, and other infrastructure remain untouched.
 
 4. **Promote to Prevention mode**:
    - Update `waf_mode = "Prevention"` in `infra/terraform-config/env/prod.tfvars`
