@@ -13,6 +13,16 @@ variable "waf_policy_name" {
   description = "Name of the WAF policy created by the infra stack."
 }
 
+variable "name_prefix" {
+  type        = string
+  description = "Name prefix used for WAF policy naming."
+}
+
+variable "subscription_id" {
+  type        = string
+  description = "Azure subscription ID used to construct API-specific WAF policy import IDs."
+}
+
 variable "resource_group_name" {
   type        = string
   description = "Resource group containing the WAF policy."

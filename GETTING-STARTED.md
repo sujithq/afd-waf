@@ -961,9 +961,9 @@ After successful dev deployment:
 
 1. **Deploy to test and prod** using the same Infra Deploy workflow (select different environments)
 
-2. **Run Config Deploy** after every Infra Deploy to apply WAF managed rules. Trigger the **Config Deploy** workflow manually for the same environment, select `iac=terraform`, and Terraform imports the WAF policy to apply managed rules from `config/waf/{env}/exclusions.json`.
+2. **Run Config Deploy** after every Infra Deploy to apply WAF managed rules. Trigger the **Config Deploy** workflow manually for the same environment and select `iac=terraform`. Terraform imports the base WAF policy plus any API-specific WAF policies declared in `config/waf/api-policies.json`, applies shared OData exclusions from `config/waf/base/`, applies environment additions from `config/waf/{env}/`, and applies API-only additions from `config/waf/{env}/apis/{api}/` when those folders exist.
 
-3. **Update WAF config** for future changes. Modify `config/waf/{env}/exclusions.json` or `rule-overrides.json`, push changes so Config Validate checks schema and guardrails on PR, then merge to `main` and run Config Deploy manually for the target environment. Only WAF managed rules are updated; AFD, APIM, and other infrastructure remain untouched.
+3. **Update WAF config** for future changes. Add common OData query arguments to `config/waf/base/`. Add environment-wide tuning to `config/waf/{env}/`. Add API-only tuning to `config/waf/{env}/apis/{api}/`. For a new isolated API policy, first add the API key and path patterns to `config/waf/api-policies.json`. Use `disabledBaseExclusions` in that registry when an API must opt out of one inherited base exclusion. Run `scripts/show-effective-waf-config.ps1 -Environment dev` to preview the merged policy before deployment. Push changes so Config Validate checks schema and guardrails on PR, then merge to `main` and run Config Deploy manually for the target environment. API-only additions do not change other APIs.
 
 4. **Promote to Prevention mode**:
    - Update `waf_mode = "Prevention"` in `infra/terraform-config/env/prod.tfvars`

@@ -129,13 +129,17 @@ This repository uses a **two-stack IaC model** with separate Terraform configura
 
 | Responsibility | Terraform stack | Workflow |
 |---|---|---|
-| Resource group, WAF policy resource, APIM, AFD | `infra/terraform/` | Infra Deploy |
+| Resource group, WAF policy resources, APIM, AFD | `infra/terraform/` | Infra Deploy |
 | WAF managed rules, exclusions, rule overrides | `infra/terraform-config/` | Config Deploy |
 
-- **Infra stack** (`infra/terraform/`): Provisions all Azure resources. The WAF policy is created bare (no rules). `lifecycle { ignore_changes = [managed_rule, custom_rule, mode, enabled] }` ensures that config-stack rule and mode changes are never reverted by an infra apply.
-- **Config stack** (`infra/terraform-config/`): Imports the WAF policy by ID and applies `managed_rule` blocks built from the JSON files in `config/waf/{env}/`. Runs independently without touching infrastructure.
+- **Infra stack** (`infra/terraform/`): Provisions all Azure resources. WAF policies are created bare (no rules). `lifecycle { ignore_changes = [managed_rule, custom_rule, mode, enabled] }` ensures that config-stack rule and mode changes are never reverted by an infra apply.
+- **Config stack** (`infra/terraform-config/`): Imports the WAF policies by ID and applies `managed_rule` blocks built from JSON. `config/waf/api-policies.json` declares optional base path patterns and any API-specific policies. API1 protects `/api1/odata*`; API2 protects `/api2/odata*` in this demo.
 - **Bicep config stack** (`infra/bicep-config/`): Applies the same WAF rule-group overrides from JSON when Config Deploy runs with `iac=bicep`.
-- **WAF config JSON** (`config/waf/{env}/exclusions.json`, `rule-overrides.json`): Source of truth for rule exclusions and action overrides. Terraform reads these on every config apply.
+- **WAF config JSON**: `config/waf/base/` contains shared OData exclusions such as `$select`, `$expand`, `$filter`, and `$orderby`. `config/waf/{env}/` can append environment-level tuning. `config/waf/{env}/apis/{api}/` appends API-only tuning, such as the current `api1` `$search` and `api2` `$customVar` examples, without changing other APIs.
+
+To add another API-specific WAF policy, add it to `config/waf/api-policies.json` with its path patterns, then optionally add `config/waf/{env}/apis/{api}/exclusions.json` and `rule-overrides.json` for API-specific tuning. API keys must be lowercase letters, numbers, or hyphens, and path patterns must start with `/`. Terraform creates the additional WAF policy and AFD path association from the registry. API policies inherit `config/waf/base/`; use `disabledBaseExclusions` in `api-policies.json` when an API must opt out of one inherited base exclusion, such as API1 disallowing `$top` while API2 still allows it.
+
+Preview effective WAF tuning before deployment with `scripts/show-effective-waf-config.ps1 -Environment dev`. The script shows the merged base, environment, and API-specific exclusions for each path-associated policy, including inherited exclusions that are disabled for a specific API. Add `-AsJson` for machine-readable output.
 
 **Benefits of separation:**
 - Config changes have isolated blast radius — a broken exclusion cannot affect AFD or APIM

@@ -1,0 +1,18 @@
+{
+  "metadata": {
+    "changeTicket": "CHG-DEV-API2-0001",
+    "owner": "api2-team",
+    "reason": "API2 supports a custom query argument that should not be allowed on API1",
+    "expiresOn": "2026-12-31"
+  },
+  "exclusions": [
+    {
+      "matchVariable": "QueryStringArgNames",
+      "selectorMatchOperator": "Equals",
+      "selector": "$customVar",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "SQLI",
+      "ruleId": "942100"
+    }
+  ]
+}

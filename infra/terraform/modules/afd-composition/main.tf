@@ -65,8 +65,10 @@ module "afd" {
   }
 }
 
-resource "azurerm_cdn_frontdoor_security_policy" "waf_association" {
-  name                     = "waf-association"
+resource "azurerm_cdn_frontdoor_security_policy" "base_waf_association" {
+  for_each = length(var.base_path_patterns) > 0 ? { base = true } : {}
+
+  name                     = "base-waf-association"
   cdn_frontdoor_profile_id = module.afd.resource_id
 
   security_policies {
@@ -74,7 +76,28 @@ resource "azurerm_cdn_frontdoor_security_policy" "waf_association" {
       cdn_frontdoor_firewall_policy_id = var.waf_policy_id
 
       association {
-        patterns_to_match = ["/*"]
+        patterns_to_match = var.base_path_patterns
+
+        domain {
+          cdn_frontdoor_domain_id = module.afd.frontdoor_endpoints["endpoint"].id
+        }
+      }
+    }
+  }
+}
+
+resource "azurerm_cdn_frontdoor_security_policy" "api_waf_association" {
+  for_each = var.api_waf_policies
+
+  name                     = "${each.key}-waf-association"
+  cdn_frontdoor_profile_id = module.afd.resource_id
+
+  security_policies {
+    firewall {
+      cdn_frontdoor_firewall_policy_id = var.api_waf_policy_ids[each.key]
+
+      association {
+        patterns_to_match = each.value.path_patterns
 
         domain {
           cdn_frontdoor_domain_id = module.afd.frontdoor_endpoints["endpoint"].id

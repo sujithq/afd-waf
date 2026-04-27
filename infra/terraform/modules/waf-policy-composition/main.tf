@@ -22,3 +22,17 @@ moved {
   from = module.waf_policy.azurerm_cdn_frontdoor_firewall_policy.waf_policy
   to   = azurerm_cdn_frontdoor_firewall_policy.waf
 }
+
+resource "azurerm_cdn_frontdoor_firewall_policy" "api" {
+  for_each = var.api_waf_policies
+
+  name                = lower(replace("${var.name_prefix}waf${var.environment}${each.key}", "-", ""))
+  resource_group_name = var.resource_group_name
+  sku_name            = "Premium_AzureFrontDoor"
+  mode                = var.waf_mode
+  enabled             = true
+
+  lifecycle {
+    ignore_changes = [managed_rule, custom_rule, mode, enabled]
+  }
+}

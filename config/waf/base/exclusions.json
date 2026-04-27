@@ -1,0 +1,66 @@
+{
+  "metadata": {
+    "changeTicket": "CHG-BASE-0001",
+    "owner": "platform-security",
+    "reason": "Common OData query argument names used across APIM APIs",
+    "expiresOn": "2026-12-31"
+  },
+  "exclusions": [
+    {
+      "matchVariable": "QueryStringArgNames",
+      "selectorMatchOperator": "Equals",
+      "selector": "$select",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "SQLI",
+      "ruleId": "942100"
+    },
+    {
+      "matchVariable": "QueryStringArgNames",
+      "selectorMatchOperator": "Equals",
+      "selector": "$expand",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "SQLI",
+      "ruleId": "942100"
+    },
+    {
+      "matchVariable": "QueryStringArgNames",
+      "selectorMatchOperator": "Equals",
+      "selector": "$filter",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "SQLI",
+      "ruleId": "942100"
+    },
+    {
+      "matchVariable": "QueryStringArgNames",
+      "selectorMatchOperator": "Equals",
+      "selector": "$orderby",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "SQLI",
+      "ruleId": "942110"
+    },
+    {
+      "matchVariable": "QueryStringArgNames",
+      "selectorMatchOperator": "Equals",
+      "selector": "$top",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "SQLI",
+      "ruleId": "942100"
+    },
+    {
+      "matchVariable": "QueryStringArgNames",
+      "selectorMatchOperator": "Equals",
+      "selector": "$skip",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "SQLI",
+      "ruleId": "942100"
+    },
+    {
+      "matchVariable": "QueryStringArgNames",
+      "selectorMatchOperator": "Equals",
+      "selector": "$count",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "SQLI",
+      "ruleId": "942100"
+    }
+  ]
+}

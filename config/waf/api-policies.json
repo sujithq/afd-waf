@@ -1,0 +1,27 @@
+{
+  "base": {
+    "pathPatterns": []
+  },
+  "apiPolicies": {
+    "api1": {
+      "pathPatterns": [
+        "/api1/odata*"
+      ],
+      "disabledBaseExclusions": [
+        {
+          "matchVariable": "QueryStringArgNames",
+          "selectorMatchOperator": "Equals",
+          "selector": "$top",
+          "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+          "ruleGroup": "SQLI",
+          "ruleId": "942100"
+        }
+      ]
+    },
+    "api2": {
+      "pathPatterns": [
+        "/api2/odata*"
+      ]
+    }
+  }
+}

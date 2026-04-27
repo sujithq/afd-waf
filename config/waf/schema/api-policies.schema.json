@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WAF API policy registry",
+  "type": "object",
+  "required": ["base", "apiPolicies"],
+  "additionalProperties": false,
+  "$defs": {
+    "pathPattern": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^/"
+    },
+    "exclusion": {
+      "type": "object",
+      "required": ["matchVariable", "selectorMatchOperator", "selector", "ruleSet", "ruleGroup", "ruleId"],
+      "additionalProperties": false,
+      "properties": {
+        "matchVariable": { "type": "string", "enum": ["QueryStringArgNames"] },
+        "selectorMatchOperator": { "type": "string", "enum": ["Equals"] },
+        "selector": { "type": "string", "minLength": 1 },
+        "ruleSet": { "type": "string", "minLength": 1 },
+        "ruleGroup": { "type": "string", "minLength": 1 },
+        "ruleId": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "properties": {
+    "base": {
+      "type": "object",
+      "required": ["pathPatterns"],
+      "additionalProperties": false,
+      "properties": {
+        "pathPatterns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pathPattern" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "apiPolicies": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9-]+$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["pathPatterns"],
+        "additionalProperties": false,
+        "properties": {
+          "pathPatterns": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/$defs/pathPattern" },
+            "uniqueItems": true
+          },
+          "disabledBaseExclusions": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/exclusion" },
+            "uniqueItems": true
+          }
+        }
+      }
+    }
+  }
+}

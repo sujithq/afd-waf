@@ -1,0 +1,9 @@
+{
+  "metadata": {
+    "changeTicket": "CHG-BASE-0002",
+    "owner": "platform-security",
+    "reason": "No broad disable, only scoped action tuning",
+    "expiresOn": "2026-12-31"
+  },
+  "overrides": []
+}

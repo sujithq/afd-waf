@@ -1,12 +1,28 @@
 locals {
-  exclusions_json = jsondecode(file("${var.waf_config_path}/exclusions.json"))
-  overrides_json  = jsondecode(file("${var.waf_config_path}/rule-overrides.json"))
+  config_paths = [for path in var.waf_config_paths : path if fileexists("${path}/exclusions.json") && fileexists("${path}/rule-overrides.json")]
+
+  disabled_exclusion_keys = toset([
+    for exclusion in var.disabled_exclusions : "${exclusion.matchVariable}|${exclusion.selectorMatchOperator}|${exclusion.selector}|${exclusion.ruleSet}|${exclusion.ruleGroup}|${exclusion.ruleId}"
+  ])
+
+  merged_exclusions = distinct(flatten([
+    for path in local.config_paths : jsondecode(file("${path}/exclusions.json")).exclusions
+  ]))
+
+  exclusions = [
+    for exclusion in local.merged_exclusions : exclusion
+    if !contains(local.disabled_exclusion_keys, "${exclusion.matchVariable}|${exclusion.selectorMatchOperator}|${exclusion.selector}|${exclusion.ruleSet}|${exclusion.ruleGroup}|${exclusion.ruleId}")
+  ]
+
+  overrides = flatten([
+    for path in local.config_paths : jsondecode(file("${path}/rule-overrides.json")).overrides
+  ])
 
   # Build a map of rule action overrides keyed by "ruleGroup.ruleId" from rule-overrides.json
   # so they can be merged with exclusion-derived rules below.
   override_map = {
     for entry in flatten([
-      for grp in local.overrides_json.overrides : [
+      for grp in local.overrides : [
         for r in grp.rules : {
           key    = "${grp.ruleGroup}.${r.ruleId}"
           action = r.action
@@ -19,16 +35,16 @@ locals {
   # entries in rule-overrides.json without a corresponding exclusion are
   # still applied.
   unique_rule_groups = distinct(concat(
-    [for excl in local.exclusions_json.exclusions : excl.ruleGroup],
-    [for grp in local.overrides_json.overrides : grp.ruleGroup]
+    [for excl in local.exclusions : excl.ruleGroup],
+    [for grp in local.overrides : grp.ruleGroup]
   ))
 
   # For each group, collect unique rule IDs from BOTH sources.
   unique_rules_per_group = {
     for rule_group in local.unique_rule_groups : rule_group => distinct(concat(
-      [for excl in local.exclusions_json.exclusions : excl.ruleId if excl.ruleGroup == rule_group],
+      [for excl in local.exclusions : excl.ruleId if excl.ruleGroup == rule_group],
       flatten([
-        for grp in local.overrides_json.overrides : [for r in grp.rules : r.ruleId]
+        for grp in local.overrides : [for r in grp.rules : r.ruleId]
         if grp.ruleGroup == rule_group
       ])
     ))
@@ -45,7 +61,7 @@ locals {
           rule_id = rule_id
           action  = lookup(local.override_map, "${rule_group}.${rule_id}", "AnomalyScoring")
           exclusions = [
-            for excl in local.exclusions_json.exclusions : {
+            for excl in local.exclusions : {
               match_variable = excl.matchVariable
               operator       = excl.selectorMatchOperator
               selector       = excl.selector

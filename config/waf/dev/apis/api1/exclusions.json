@@ -1,0 +1,18 @@
+{
+  "metadata": {
+    "changeTicket": "CHG-DEV-API1-0001",
+    "owner": "api1-team",
+    "reason": "API1 supports an additional OData search query argument while opting out of inherited $top tuning",
+    "expiresOn": "2026-12-31"
+  },
+  "exclusions": [
+    {
+      "matchVariable": "QueryStringArgNames",
+      "selectorMatchOperator": "Equals",
+      "selector": "$search",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "SQLI",
+      "ruleId": "942100"
+    }
+  ]
+}

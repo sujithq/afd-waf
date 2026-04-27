@@ -65,11 +65,21 @@ jobs:
             --resource-group "$RG" \
             --query "name" --output tsv >/dev/null
 
+          for API_NAME in $(jq -r '.apiPolicies | keys[]?' config/waf/api-policies.json); do
+            API_WAF_NAME=$(echo "${PREFIX}waf${ENV}${API_NAME}" | tr '[:upper:]' '[:lower:]' | tr -d '-')
+            az network front-door waf-policy show \
+              --name "$API_WAF_NAME" \
+              --resource-group "$RG" \
+              --query "name" --output tsv >/dev/null
+          done
+
           # Emit canonical-cased ARM ID for Terraform import compatibility.
           WAF_ID="/subscriptions/${{ vars.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${RG}/providers/Microsoft.Network/frontDoorWebApplicationFirewallPolicies/${WAF_NAME}"
           echo "TF_VAR_waf_policy_name=${WAF_NAME}" >> "$GITHUB_ENV"
           echo "TF_VAR_resource_group_name=${RG}" >> "$GITHUB_ENV"
           echo "TF_VAR_waf_policy_id=${WAF_ID}" >> "$GITHUB_ENV"
+          echo "TF_VAR_name_prefix=${PREFIX}" >> "$GITHUB_ENV"
+          echo "TF_VAR_subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID }}" >> "$GITHUB_ENV"
 
       - name: Deploy WAF config via Terraform
         if: inputs.iac != 'bicep'
@@ -79,6 +89,8 @@ jobs:
           ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ inputs.environment }}
+          TF_VAR_name_prefix: ${{ vars.TF_NAME_PREFIX }}
+          TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
         run: |
           cd infra/terraform-config
           terraform init -upgrade=false \

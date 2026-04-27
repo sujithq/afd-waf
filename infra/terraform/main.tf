@@ -3,6 +3,19 @@ resource "azurerm_resource_group" "main" {
   location = var.location
 }
 
+locals {
+  waf_api_policy_config = jsondecode(file("${path.root}/../../config/waf/api-policies.json"))
+  base_waf_path_patterns = try(
+    local.waf_api_policy_config.base.pathPatterns,
+    ["/*"]
+  )
+  api_waf_policies = {
+    for api_name, policy in try(local.waf_api_policy_config.apiPolicies, {}) : api_name => {
+      path_patterns = policy.pathPatterns
+    }
+  }
+}
+
 module "waf" {
   source = "./modules/waf-policy-composition"
 
@@ -11,6 +24,7 @@ module "waf" {
   name_prefix         = var.name_prefix
   environment         = var.environment
   waf_mode            = var.waf_mode
+  api_waf_policies    = local.api_waf_policies
 }
 
 module "apim" {
@@ -32,5 +46,8 @@ module "afd" {
   name_prefix         = var.name_prefix
   environment         = var.environment
   waf_policy_id       = module.waf.waf_policy_id
+  base_path_patterns  = local.base_waf_path_patterns
+  api_waf_policies    = local.api_waf_policies
+  api_waf_policy_ids  = module.waf.api_waf_policy_ids
   apim_gateway_host   = module.apim.apim_gateway_host
 }
