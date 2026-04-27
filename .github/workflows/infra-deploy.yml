@@ -135,4 +135,5 @@ jobs:
     uses: ./.github/workflows/config-deploy.yml
     with:
       environment: ${{ inputs.environment }}
+      iac: ${{ inputs.iac }}
     secrets: inherit

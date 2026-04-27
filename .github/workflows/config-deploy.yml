@@ -8,12 +8,23 @@ on:
         required: true
         type: choice
         options: [dev, test, prod]
+      iac:
+        description: IaC stack
+        required: false
+        type: choice
+        options: [terraform, bicep]
+        default: terraform
   workflow_call:
     inputs:
       environment:
         description: Target environment
         required: true
         type: string
+      iac:
+        description: IaC stack
+        required: false
+        type: string
+        default: terraform
 
 permissions:
   contents: read
@@ -29,6 +40,7 @@ jobs:
           persist-credentials: false
 
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        if: inputs.iac != 'bicep'
         with:
           terraform_version: 1.14.9
 
@@ -40,6 +52,7 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Resolve WAF policy details from Azure
+        if: inputs.iac != 'bicep'
         run: |
           ENV="${{ inputs.environment }}"
           PREFIX="${{ vars.TF_NAME_PREFIX }}"
@@ -59,6 +72,7 @@ jobs:
           echo "TF_VAR_waf_policy_id=${WAF_ID}" >> "$GITHUB_ENV"
 
       - name: Deploy WAF config via Terraform
+        if: inputs.iac != 'bicep'
         env:
           ARM_USE_OIDC: true
           ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
@@ -75,3 +89,76 @@ jobs:
             -backend-config="key=${{ inputs.environment }}-config.tfstate"
           terraform apply -auto-approve -input=false \
             -var-file="env/${{ inputs.environment }}.tfvars"
+
+      - name: Deploy WAF config via Bicep
+        if: inputs.iac == 'bicep'
+        run: |
+          ENV="${{ inputs.environment }}"
+          PREFIX="${{ vars.TF_NAME_PREFIX }}"
+          WAF_NAME="${PREFIX}-waf-${ENV}"
+          RG="${PREFIX}-${ENV}-rg"
+
+          # Verify policy exists before attempting deployment
+          az network front-door waf-policy show \
+            --name "$WAF_NAME" \
+            --resource-group "$RG" \
+            --query "name" --output tsv >/dev/null
+
+          # Transform config JSON files to ARM ruleGroupOverrides format.
+          # Mirrors the Terraform waf-rules module logic: collects unique rules from
+          # both exclusions.json and rule-overrides.json, attaches per-rule exclusions.
+          cat > /tmp/build-waf-params.py << 'PYEOF'
+          import json
+          import sys
+
+          env = sys.argv[1]
+          excl_data = json.load(open(f'config/waf/{env}/exclusions.json'))
+          ovrd_data = json.load(open(f'config/waf/{env}/rule-overrides.json'))
+
+          override_map = {}
+          for grp in ovrd_data.get('overrides', []):
+              for r in grp.get('rules', []):
+                  override_map[f"{grp['ruleGroup']}.{r['ruleId']}"] = r['action']
+
+          rules_per_group = {}
+          for excl in excl_data.get('exclusions', []):
+              rules_per_group.setdefault(excl['ruleGroup'], set()).add(excl['ruleId'])
+          for grp in ovrd_data.get('overrides', []):
+              for r in grp.get('rules', []):
+                  rules_per_group.setdefault(grp['ruleGroup'], set()).add(r['ruleId'])
+
+          exclusions_by_rule = {}
+          for excl in excl_data.get('exclusions', []):
+              key = f"{excl['ruleGroup']}.{excl['ruleId']}"
+              exclusions_by_rule.setdefault(key, []).append({
+                  'matchVariable': excl['matchVariable'],
+                  'selectorMatchOperator': excl['selectorMatchOperator'],
+                  'selector': excl['selector'],
+              })
+
+          rgo = []
+          for rg, rule_ids in rules_per_group.items():
+              rules = []
+              for rid in sorted(rule_ids):
+                  # Default to AnomalyScoring (correct for DRS 2.1 anomaly-scoring mode)
+                  # unless explicitly overridden in rule-overrides.json.
+                  action = override_map.get(f"{rg}.{rid}", 'AnomalyScoring')
+                  excls = exclusions_by_rule.get(f"{rg}.{rid}", [])
+                  rule = {'ruleId': rid, 'enabledState': 'Enabled', 'action': action}
+                  if excls:
+                      rule['exclusions'] = excls
+                  rules.append(rule)
+              rgo.append({'ruleGroupName': rg, 'rules': rules})
+
+          print(json.dumps(rgo))
+          PYEOF
+
+          RULE_GROUP_OVERRIDES=$(python3 /tmp/build-waf-params.py "$ENV")
+
+          az bicep install --version v0.42.1
+          az deployment group create \
+            --resource-group "$RG" \
+            --template-file infra/bicep-config/main.bicep \
+            --parameters @infra/bicep-config/env/${{ inputs.environment }}.parameters.json \
+            --parameters wafPolicyName="$WAF_NAME" \
+            --parameters "ruleGroupOverrides=$RULE_GROUP_OVERRIDES"
