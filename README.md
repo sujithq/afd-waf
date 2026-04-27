@@ -139,7 +139,7 @@ This repository uses a **two-stack IaC model** with separate Terraform configura
 
 To add another API-specific WAF policy, add it to `config/waf/api-policies.json` with its APIM API name and path patterns, then optionally add `config/waf/{env}/apis/{api}/exclusions.json` and `rule-overrides.json` for API-specific tuning. API keys must be lowercase letters, numbers, or hyphens, the APIM API name must exist in Terraform, and path patterns must start with the APIM API path. Terraform creates the additional WAF policy and AFD path association from the registry. API policies inherit `config/waf/base/`; use `disabledBaseExclusions` in `api-policies.json` when an API must opt out of one inherited base exclusion, such as API1 disallowing `$top` while API2 still allows it.
 
-Preview effective WAF tuning before deployment with `scripts/show-effective-waf-config.ps1 -Environment dev`. The script shows the merged base, environment, and API-specific exclusions for each path-associated policy, including inherited exclusions that are disabled for a specific API. Add `-AsJson` for machine-readable output.
+Validate WAF tuning before opening a pull request with `scripts/test-waf-config.ps1`. Preview effective WAF tuning before deployment with `scripts/show-effective-waf-config.ps1 -Environment dev`. The preview script shows the merged base, environment, and API-specific exclusions for each path-associated policy, including inherited exclusions that are disabled for a specific API. Add `-AsJson` for machine-readable output.
 
 **Benefits of separation:**
 - Config changes have isolated blast radius — a broken exclusion cannot affect AFD or APIM
