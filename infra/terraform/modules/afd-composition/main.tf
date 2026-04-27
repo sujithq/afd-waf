@@ -51,7 +51,7 @@ module "afd" {
     }
   }
 
-  front_door_routes = {
+  front_door_routes = merge({
     default = {
       name                   = "default"
       endpoint_key           = "endpoint"
@@ -62,7 +62,20 @@ module "afd" {
       forwarding_protocol    = "HttpsOnly"
       https_redirect_enabled = true
     }
-  }
+    },
+    {
+      for api_name, policy in var.api_waf_policies : api_name => {
+        name                   = "${api_name}-route"
+        endpoint_key           = "endpoint"
+        origin_group_key       = "apim_group"
+        origin_keys            = ["apim_origin"]
+        patterns_to_match      = policy.path_patterns
+        supported_protocols    = ["Http", "Https"]
+        forwarding_protocol    = "HttpsOnly"
+        https_redirect_enabled = true
+      }
+    }
+  )
 }
 
 resource "azurerm_cdn_frontdoor_security_policy" "base_waf_association" {

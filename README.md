@@ -133,7 +133,7 @@ This repository uses a **two-stack IaC model** with separate Terraform configura
 | WAF managed rules, exclusions, rule overrides | `infra/terraform-config/` | Config Deploy |
 
 - **Infra stack** (`infra/terraform/`): Provisions all Azure resources. WAF policies are created bare (no rules). `lifecycle { ignore_changes = [managed_rule, custom_rule, mode, enabled] }` ensures that config-stack rule and mode changes are never reverted by an infra apply.
-- **Config stack** (`infra/terraform-config/`): Imports the WAF policies by ID and applies `managed_rule` blocks built from JSON. `config/waf/api-policies.json` declares optional base path patterns and any API-specific policies. API1 protects `/odata1/*`; API2 protects `/odata2/*` in this demo.
+- **Config stack** (`infra/terraform-config/`): Imports the WAF policies by ID and applies `managed_rule` blocks built from JSON. `config/waf/api-policies.json` declares optional base path patterns and any API-specific policies. API1 protects `/odata1/*`; API2 protects `/odata2/*` in this demo. The infra stack creates matching AFD route patterns for API-specific WAF associations.
 - **Bicep config stack** (`infra/bicep-config/`): Applies the same WAF rule-group overrides from JSON when Config Deploy runs with `iac=bicep`.
 - **WAF config JSON**: `config/waf/base/` contains shared OData exclusions such as `$select`, `$expand`, `$filter`, and `$orderby`. `config/waf/{env}/` can append environment-level tuning. `config/waf/{env}/apis/{api}/` appends API-only tuning, such as the current `api1` `$search` and `api2` `$customVar` examples, without changing other APIs.
 
