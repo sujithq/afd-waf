@@ -831,8 +831,8 @@ powershell -File scripts/smoke-odata.ps1 `
 
 # Expected output: 
 # Testing OData queries against AFD...
-# GET /api1/odata?$filter=name eq 'test' ... 200 OK
-# GET /api2/odata?$orderby=id ... 200 OK
+# GET /odata1/Entities?$filter=name eq 'test' ... 200 OK
+# GET /odata2/Entities?$orderby=id ... 200 OK
 ```
 
 **Bash**:

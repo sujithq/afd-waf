@@ -55,14 +55,13 @@ jobs:
           }
 
           $apimComposition = Get-Content $apimCompositionPath -Raw
-          $apimApiNames = @(
-            [regex]::Matches($apimComposition, '(?m)^\s*name\s*=\s*"([^"]+)"') |
-              ForEach-Object { $_.Groups[1].Value } |
-              Sort-Object -Unique
-          )
+          $apimApiPathsByName = @{}
+          foreach ($match in [regex]::Matches($apimComposition, '(?ms)^\s*name\s*=\s*"([^"]+)".*?^\s*path\s*=\s*"([^"]+)"')) {
+            $apimApiPathsByName[$match.Groups[1].Value] = $match.Groups[2].Value
+          }
 
-          if ($apimApiNames.Count -eq 0) {
-            throw "No APIM API names were found in $apimCompositionPath"
+          if ($apimApiPathsByName.Count -eq 0) {
+            throw "No APIM API name/path pairs were found in $apimCompositionPath"
           }
 
           function Get-ExclusionKey($exclusion) {
@@ -85,6 +84,14 @@ jobs:
               $rightPrefix.StartsWith($leftPrefix, [System.StringComparison]::OrdinalIgnoreCase)
           }
 
+          function Test-PathPatternMatchesApimPath($pattern, $apimPath) {
+            $expectedRoot = "/$apimPath"
+            $patternPrefix = (Get-PathPrefix $pattern).TrimEnd('/')
+
+            return $patternPrefix.Equals($expectedRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+              $patternPrefix.StartsWith("$expectedRoot/", [System.StringComparison]::OrdinalIgnoreCase)
+          }
+
           $apiProperties = @()
           if ($null -ne $apiPolicyConfig.apiPolicies) {
             $apiProperties = @($apiPolicyConfig.apiPolicies.PSObject.Properties)
@@ -96,8 +103,15 @@ jobs:
               throw "API policy '$($api.Name)' must define at least one pathPatterns entry"
             }
 
-            if ($apimApiNames -notcontains $api.Value.apimApiName) {
+            if (-not $apimApiPathsByName.ContainsKey($api.Value.apimApiName)) {
               throw "API policy '$($api.Name)' references APIM API '$($api.Value.apimApiName)', but no matching API name is defined in $apimCompositionPath"
+            }
+
+            $apimPath = $apimApiPathsByName[$api.Value.apimApiName]
+            foreach ($pattern in @($api.Value.pathPatterns)) {
+              if (-not (Test-PathPatternMatchesApimPath $pattern $apimPath)) {
+                throw "Path pattern '$pattern' in API policy '$($api.Name)' does not match APIM API '$($api.Value.apimApiName)' path '/$apimPath'"
+              }
             }
           }
 
