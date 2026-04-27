@@ -53,6 +53,22 @@ jobs:
             return "$($exclusion.matchVariable)|$($exclusion.selectorMatchOperator)|$($exclusion.selector)|$($exclusion.ruleSet)|$($exclusion.ruleGroup)|$($exclusion.ruleId)"
           }
 
+          function Get-PathPrefix($pattern) {
+            if ($pattern.EndsWith('*')) {
+              return $pattern.Substring(0, $pattern.Length - 1)
+            }
+
+            return $pattern
+          }
+
+          function Test-PathPatternOverlap($left, $right) {
+            $leftPrefix = Get-PathPrefix $left.pattern
+            $rightPrefix = Get-PathPrefix $right.pattern
+
+            return $leftPrefix.StartsWith($rightPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+              $rightPrefix.StartsWith($leftPrefix, [System.StringComparison]::OrdinalIgnoreCase)
+          }
+
           $apiProperties = @()
           if ($null -ne $apiPolicyConfig.apiPolicies) {
             $apiProperties = @($apiPolicyConfig.apiPolicies.PSObject.Properties)
@@ -62,6 +78,42 @@ jobs:
           foreach ($api in $apiProperties) {
             if ($null -eq $api.Value.pathPatterns -or $api.Value.pathPatterns.Count -eq 0) {
               throw "API policy '$($api.Name)' must define at least one pathPatterns entry"
+            }
+          }
+
+          $pathPatterns = @()
+          foreach ($pattern in @($apiPolicyConfig.base.pathPatterns)) {
+            $pathPatterns += [pscustomobject]@{
+              policy = "base"
+              pattern = $pattern
+            }
+          }
+
+          foreach ($api in $apiProperties) {
+            foreach ($pattern in @($api.Value.pathPatterns)) {
+              $pathPatterns += [pscustomobject]@{
+                policy = $api.Name
+                pattern = $pattern
+              }
+            }
+          }
+
+          $patternsByValue = $pathPatterns | Group-Object -Property pattern
+          foreach ($group in $patternsByValue) {
+            if ($group.Count -gt 1) {
+              $owners = ($group.Group | ForEach-Object { $_.policy }) -join ", "
+              throw "Path pattern '$($group.Name)' is declared by multiple WAF policies: $owners"
+            }
+          }
+
+          for ($i = 0; $i -lt $pathPatterns.Count; $i++) {
+            for ($j = $i + 1; $j -lt $pathPatterns.Count; $j++) {
+              $left = $pathPatterns[$i]
+              $right = $pathPatterns[$j]
+
+              if (Test-PathPatternOverlap $left $right) {
+                throw "Path pattern '$($left.pattern)' in WAF policy '$($left.policy)' overlaps with '$($right.pattern)' in WAF policy '$($right.policy)'. Use one policy for the broader path or make the patterns non-overlapping."
+              }
             }
           }
 

@@ -8,6 +8,7 @@
 - Keep API-specific additions in `config/waf/{env}/apis/{api}/` so one API does not broaden another API's WAF policy.
 - Declare API-specific WAF policies and their AFD path patterns in `config/waf/api-policies.json`.
 - Use lowercase letters, numbers, or hyphens for API policy keys, and start every path pattern with `/`.
+- Keep path patterns unique and non-overlapping across base and API-specific WAF policies.
 - Use `disabledBaseExclusions` in `config/waf/api-policies.json` when an API must reject one inherited base allowance.
 
 ## Promotion model
