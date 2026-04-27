@@ -5,12 +5,12 @@
 - Use rule-level and selector-level exclusions only.
 - All changes must include ticket, owner, reason, and expiry.
 - Keep common OData query argument exclusions in `config/waf/base/`.
-- Keep API-specific additions in `config/waf/{env}/apis/{api}/` so one API does not broaden another API's WAF policy.
-- Declare API-specific WAF policies in `config/waf/api-policies.json`.
-- Bind each API-specific WAF policy to an APIM API name that exists in Terraform.
-- Let Terraform derive AFD route and WAF association paths from the bound APIM API path.
+- Keep shared exclusions in the base package because the active AFD default-domain WAF association applies to `/*`.
+- Keep API-specific additions in `config/waf/{env}/apis/{api}/` only as candidate policy packages for future separate domains/endpoints.
+- Declare API-specific policy packages in `config/waf/api-policies.json` and bind each one to an APIM API name that exists in Terraform.
+- Let Terraform derive AFD route paths from the bound APIM API path. Do not create path-scoped AFD WAF associations; Front Door accepts only `/*` for the endpoint default domain security policy association.
 - Use lowercase letters, numbers, or hyphens for API policy keys.
-- Keep derived API paths unique and non-overlapping across base and API-specific WAF policies.
+- Keep derived API paths unique and non-overlapping across API-specific policy packages.
 - Use `disabledBaseExclusions` in an API-specific `exclusions.json` when an API must reject one inherited base allowance.
 
 ## Promotion model

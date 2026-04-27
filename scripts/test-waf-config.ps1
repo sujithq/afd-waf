@@ -84,18 +84,6 @@ try {
   }
 
   $pathPatterns = @()
-  $baseEnabled = $apiPolicyConfig.base.enabled -eq $true
-  $basePathPatterns = @()
-  if ($baseEnabled) {
-    $basePathPatterns = @("/*")
-  }
-
-  foreach ($pattern in $basePathPatterns) {
-    $pathPatterns += [pscustomobject]@{
-      policy = "base"
-      pattern = $pattern
-    }
-  }
 
   foreach ($api in $apiProperties) {
     $apiPathPattern = Get-ApiPathPattern ($apimApiPathsByName[$api.Value.apimApiName])
@@ -119,7 +107,7 @@ try {
       $right = $pathPatterns[$j]
 
       if (Test-PathPatternOverlap $left $right) {
-        throw "Path pattern '$($left.pattern)' in WAF policy '$($left.policy)' overlaps with '$($right.pattern)' in WAF policy '$($right.policy)'. Use one policy for the broader path or make the patterns non-overlapping."
+        throw "API path pattern '$($left.pattern)' in API policy '$($left.policy)' overlaps with '$($right.pattern)' in API policy '$($right.policy)'. Use one policy for the broader path or make the patterns non-overlapping."
       }
     }
   }

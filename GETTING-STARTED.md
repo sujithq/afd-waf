@@ -934,9 +934,9 @@ cat scripts/export-waf-evidence.kql
   - Bash: `az role assignment create --assignee-object-id <SP_OBJECT_ID> --assignee-principal-type ServicePrincipal --role "Contributor" --scope "/subscriptions/<SUBSCRIPTION_ID>"`
 - Ensure `TF_NAME_PREFIX` matches your intended naming, then re-run the workflow after RBAC propagation.
 
-**Issue**: Terraform planning fails because AFD WAF path patterns must be one of `/*`
-- **Cause**: AzureRM validates Front Door WAF security policy path patterns for API-specific associations too narrowly. API-specific WAF policies use `/odata1/*` and `/odata2/*`, but the provider rejects those values even when the matching AFD routes exist.
-- **Solution**: Terraform deploys the AFD profile, routes, and WAF policies. The Infra Deploy workflow then runs `scripts/sync-afd-waf-associations.ps1` to reconcile the route-specific AFD security policy associations through ARM REST.
+**Issue**: AFD WAF security policy creation fails because path patterns must be one of `/*`
+- **Cause**: Front Door security policy associations for the endpoint default domain are domain-wide. Azure rejects route-specific WAF association patterns such as `/odata1/*` and `/odata2/*`, even when those AFD routes exist.
+- **Solution**: Use one active base WAF policy associated to `/*` for the endpoint default domain. API-specific WAF policy packages can be retained for preview or future separate domains/endpoints, but they cannot be activated as path-scoped associations on the same endpoint default domain.
 
 **Issue**: Terraform init fails with `403 KeyBasedAuthenticationNotPermitted` while listing backend blobs
 - **Cause**: The Terraform backend is trying key-based auth against a storage account that has shared key access disabled.

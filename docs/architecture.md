@@ -3,7 +3,7 @@
 This implementation separates stable infrastructure and frequent WAF tuning changes.
 
 ## Stable infra pipeline
-- Azure Front Door profile, endpoint, route, and WAF association.
+- Azure Front Door profile, endpoint, routes, and one endpoint-domain WAF association for `/*`.
 - WAF policy baseline in managed rules mode.
 - API Management with two OData mock APIs.
 

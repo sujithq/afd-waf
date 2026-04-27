@@ -1,6 +1,6 @@
 {
   "base": {
-    "enabled": false
+    "enabled": true
   },
   "apiPolicies": {
     "api1": {
