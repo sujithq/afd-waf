@@ -945,6 +945,14 @@ cat scripts/export-waf-evidence.kql
     - Bash: `az role assignment create --assignee-object-id <SP_OBJECT_ID> --assignee-principal-type ServicePrincipal --role "Storage Blob Data Contributor" --scope "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<TF_BACKEND_RG>/providers/Microsoft.Storage/storageAccounts/<TF_BACKEND_SA>"`
   - Re-run Infra Deploy after RBAC propagation.
 
+**Issue**: Terraform init fails with `403 AuthorizationFailure` while listing backend blobs
+- **Cause**: The workflow identity is using Azure AD auth, but it does not yet have backend storage data-plane access, the role assignment has not propagated, or the role was assigned to a different service principal than `AZURE_CLIENT_ID`.
+- **Solution**:
+  - Confirm `AZURE_CLIENT_ID` is the same app registration that received backend RBAC.
+  - Verify the assignment with `az role assignment list --assignee-object-id <SP_OBJECT_ID> --scope "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<TF_BACKEND_RG>/providers/Microsoft.Storage/storageAccounts/<TF_BACKEND_SA>" --include-inherited --output table`.
+  - Verify data-plane access with `az storage blob list --account-name <TF_BACKEND_SA> --container-name tfstate --auth-mode login --num-results 1` after logging in as the deployment service principal.
+  - Re-run the workflow after RBAC propagation. Infra Deploy and Config Deploy also run `scripts/test-terraform-backend-access.ps1` before Terraform init to make this failure explicit.
+
 **Issue**: Bicep build fails
 - **Solution**: Ensure Bicep CLI >= 0.42.1: `az bicep version`
 - Upgrade: `az bicep upgrade`

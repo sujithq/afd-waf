@@ -81,6 +81,18 @@ jobs:
           echo "TF_VAR_name_prefix=${PREFIX}" >> "$GITHUB_ENV"
           echo "TF_VAR_subscription_id=${{ vars.AZURE_SUBSCRIPTION_ID }}" >> "$GITHUB_ENV"
 
+      - name: Verify Terraform backend access
+        if: inputs.iac != 'bicep'
+        shell: pwsh
+        run: |
+          ./scripts/test-terraform-backend-access.ps1 `
+            -SubscriptionId "${{ vars.AZURE_SUBSCRIPTION_ID }}" `
+            -BackendResourceGroup "${{ vars.TF_BACKEND_RG }}" `
+            -BackendStorageAccount "${{ vars.TF_BACKEND_SA }}" `
+            -ClientId "${{ vars.AZURE_CLIENT_ID }}" `
+            -MaxAttempts 30 `
+            -DelaySeconds 10
+
       - name: Deploy WAF config via Terraform
         if: inputs.iac != 'bicep'
         env:

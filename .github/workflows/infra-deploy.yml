@@ -88,6 +88,18 @@ jobs:
             --auth-mode login \
             --only-show-errors 2>/dev/null || true
 
+      - name: Verify Terraform backend access
+        if: inputs.iac == 'terraform'
+        shell: pwsh
+        run: |
+          ./scripts/test-terraform-backend-access.ps1 `
+            -SubscriptionId "${{ vars.AZURE_SUBSCRIPTION_ID }}" `
+            -BackendResourceGroup "${{ vars.TF_BACKEND_RG }}" `
+            -BackendStorageAccount "${{ vars.TF_BACKEND_SA }}" `
+            -ClientId "${{ vars.AZURE_CLIENT_ID }}" `
+            -MaxAttempts 30 `
+            -DelaySeconds 10
+
       - name: Deploy bicep
         if: inputs.iac == 'bicep'
         run: |
