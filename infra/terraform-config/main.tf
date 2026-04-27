@@ -1,3 +1,14 @@
+# Remove the legacy base WAF config module address from state without deleting
+# the live policy. Older config-deploy runs managed the base policy at
+# module.waf_rules; this stack now manages it at module.base_waf_rules.
+removed {
+  from = module.waf_rules.azurerm_cdn_frontdoor_firewall_policy.waf
+
+  lifecycle {
+    destroy = false
+  }
+}
+
 # Import the existing WAF policy (created by infra stack) into this stack's state.
 # Terraform skips the import block if the resource is already managed in state.
 import {
