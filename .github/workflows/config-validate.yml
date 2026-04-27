@@ -49,6 +49,22 @@ jobs:
             throw "config/waf/api-policies.json must define base.pathPatterns, even when it is an empty array"
           }
 
+          $apimCompositionPath = "infra/terraform/modules/apim-composition/main.tf"
+          if (!(Test-Path $apimCompositionPath)) {
+            throw "Missing APIM composition file: $apimCompositionPath"
+          }
+
+          $apimComposition = Get-Content $apimCompositionPath -Raw
+          $apimApiNames = @(
+            [regex]::Matches($apimComposition, '(?m)^\s*name\s*=\s*"([^"]+)"') |
+              ForEach-Object { $_.Groups[1].Value } |
+              Sort-Object -Unique
+          )
+
+          if ($apimApiNames.Count -eq 0) {
+            throw "No APIM API names were found in $apimCompositionPath"
+          }
+
           function Get-ExclusionKey($exclusion) {
             return "$($exclusion.matchVariable)|$($exclusion.selectorMatchOperator)|$($exclusion.selector)|$($exclusion.ruleSet)|$($exclusion.ruleGroup)|$($exclusion.ruleId)"
           }
@@ -78,6 +94,10 @@ jobs:
           foreach ($api in $apiProperties) {
             if ($null -eq $api.Value.pathPatterns -or $api.Value.pathPatterns.Count -eq 0) {
               throw "API policy '$($api.Name)' must define at least one pathPatterns entry"
+            }
+
+            if ($apimApiNames -notcontains $api.Value.apimApiName) {
+              throw "API policy '$($api.Name)' references APIM API '$($api.Value.apimApiName)', but no matching API name is defined in $apimCompositionPath"
             }
           }
 

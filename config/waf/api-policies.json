@@ -4,6 +4,7 @@
   },
   "apiPolicies": {
     "api1": {
+      "apimApiName": "odata-sap-1",
       "pathPatterns": [
         "/api1/odata*"
       ],
@@ -19,6 +20,7 @@
       ]
     },
     "api2": {
+      "apimApiName": "odata-sap-2",
       "pathPatterns": [
         "/api2/odata*"
       ]
