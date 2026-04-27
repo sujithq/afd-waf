@@ -936,7 +936,7 @@ cat scripts/export-waf-evidence.kql
 
 **Issue**: Terraform planning fails because AFD WAF path patterns must be one of `/*`
 - **Cause**: AzureRM validates Front Door WAF security policy path patterns against route patterns that already exist on the endpoint. API-specific WAF policies use `/odata1/*` and `/odata2/*`, so the matching AFD routes must exist before the full apply plans the WAF associations.
-- **Solution**: Infra Deploy primes AFD route resources with a targeted apply before the full apply. If running Terraform manually, run `terraform apply -target='module.afd.module.afd.azurerm_cdn_frontdoor_route.routes'` once, then run the normal `terraform apply`.
+- **Solution**: Run one bootstrap apply with API WAF associations disabled so Terraform can remove or skip API associations while creating the API-specific AFD routes. Then run a normal apply to add the API WAF associations back once Azure has the route patterns. The Infra Deploy workflow does this automatically with `TF_VAR_enable_api_waf_associations=false terraform apply`, followed by a normal `terraform apply`.
 
 **Issue**: Terraform init fails with `403 KeyBasedAuthenticationNotPermitted` while listing backend blobs
 - **Cause**: The Terraform backend is trying key-based auth against a storage account that has shared key access disabled.

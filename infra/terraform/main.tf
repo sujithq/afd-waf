@@ -39,13 +39,14 @@ module "apim" {
 module "afd" {
   source = "./modules/afd-composition"
 
-  resource_group_name = azurerm_resource_group.main.name
-  location            = var.location
-  name_prefix         = var.name_prefix
-  environment         = var.environment
-  waf_policy_id       = module.waf.waf_policy_id
-  base_path_patterns  = local.base_waf_path_patterns
-  api_waf_policies    = local.api_waf_policies
-  api_waf_policy_ids  = module.waf.api_waf_policy_ids
-  apim_gateway_host   = module.apim.apim_gateway_host
+  resource_group_name         = azurerm_resource_group.main.name
+  location                    = var.location
+  name_prefix                 = var.name_prefix
+  environment                 = var.environment
+  waf_policy_id               = module.waf.waf_policy_id
+  base_path_patterns          = local.base_waf_path_patterns
+  api_waf_policies            = local.api_waf_policies
+  api_waf_policy_ids          = module.waf.api_waf_policy_ids
+  enable_api_waf_associations = var.enable_api_waf_associations
+  apim_gateway_host           = module.apim.apim_gateway_host
 }

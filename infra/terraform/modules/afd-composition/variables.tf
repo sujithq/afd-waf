@@ -11,4 +11,5 @@ variable "api_waf_policies" {
   }))
   default = {}
 }
+variable "enable_api_waf_associations" { type = bool }
 variable "apim_gateway_host" { type = string }

@@ -100,7 +100,7 @@ resource "azurerm_cdn_frontdoor_security_policy" "base_waf_association" {
 }
 
 resource "azurerm_cdn_frontdoor_security_policy" "api_waf_association" {
-  for_each = var.api_waf_policies
+  for_each = var.enable_api_waf_associations ? var.api_waf_policies : {}
 
   name                     = "${each.key}-waf-association"
   cdn_frontdoor_profile_id = module.afd.resource_id

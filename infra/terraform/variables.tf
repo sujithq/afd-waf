@@ -22,3 +22,9 @@ variable "apim_publisher_email" {
 variable "apim_publisher_name" {
   type = string
 }
+
+variable "enable_api_waf_associations" {
+  type        = bool
+  default     = true
+  description = "Set false for a bootstrap apply that removes/skips API WAF associations while AFD route patterns are created. Run a normal apply afterwards to add the associations back."
+}

@@ -143,8 +143,7 @@ jobs:
                 "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$RG_NAME"
             fi
           fi
-          terraform apply -auto-approve -input=false \
-            -target='module.afd.module.afd.azurerm_cdn_frontdoor_route.routes'
+          TF_VAR_enable_api_waf_associations=false terraform apply -auto-approve -input=false
           terraform apply -auto-approve -input=false
           echo "--- Infra outputs (pass to config-deploy) ---"
           terraform output -json | jq '{waf_policy_id: .waf_policy_id.value, waf_policy_name: .waf_policy_name.value, api_waf_policy_ids: .api_waf_policy_ids.value, api_waf_policy_names: .api_waf_policy_names.value}'
