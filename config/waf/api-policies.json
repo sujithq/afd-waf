@@ -4,7 +4,7 @@
   },
   "domainPolicies": {
     "domain-a": {
-      "enabled": false,
+      "enabled": true,
       "hostName": "api-a.wafdemo.squintelier.net",
       "dns": {
         "zoneName": "wafdemo.squintelier.net",
@@ -22,7 +22,7 @@
       }
     },
     "domain-b": {
-      "enabled": false,
+      "enabled": true,
       "hostName": "api-b.wafdemo.squintelier.net",
       "dns": {
         "zoneName": "wafdemo.squintelier.net",
