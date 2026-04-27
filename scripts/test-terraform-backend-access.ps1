@@ -25,6 +25,15 @@ $scope = "/subscriptions/$SubscriptionId/resourceGroups/$BackendResourceGroup/pr
 Write-Output "Checking Terraform backend data-plane access..."
 Write-Output "Backend storage scope: $scope"
 
+try {
+  $account = az account show --query "{subscriptionId:id, tenantId:tenantId, user:user.name}" -o json | ConvertFrom-Json
+  Write-Output "Azure CLI account user: $($account.user)"
+  Write-Output "Azure CLI tenant ID: $($account.tenantId)"
+  Write-Output "Azure CLI subscription ID: $($account.subscriptionId)"
+} catch {
+  Write-Output "Could not read Azure CLI account context. Continuing with backend data-plane access test."
+}
+
 $spObjectId = $null
 try {
   $spObjectId = az ad sp show --id $ClientId --query id -o tsv
@@ -33,6 +42,26 @@ try {
   }
 } catch {
   Write-Output "Could not resolve service principal object ID from client ID. Continuing with data-plane access test."
+}
+
+if ($spObjectId) {
+  try {
+    $assignments = az role assignment list `
+      --assignee-object-id $spObjectId `
+      --scope $scope `
+      --include-inherited `
+      --query "[?roleDefinitionName=='Storage Blob Data Contributor'].{role:roleDefinitionName, principalId:principalId, scope:scope}" `
+      -o json | ConvertFrom-Json
+
+    if (@($assignments).Count -gt 0) {
+      Write-Output "Storage Blob Data Contributor assignment visible for deployment service principal:"
+      $assignments | ConvertTo-Json -Depth 5 | Write-Output
+    } else {
+      Write-Output "No Storage Blob Data Contributor assignment is visible for the deployment service principal at the backend scope."
+    }
+  } catch {
+    Write-Output "Could not list role assignments for the deployment service principal. Continuing with backend data-plane access test."
+  }
 }
 
 $attempt = 1
