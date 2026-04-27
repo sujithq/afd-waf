@@ -11,7 +11,6 @@ module "apim" {
   sku_name            = "Developer_1"
   enable_telemetry    = true
   tags                = {}
-  zones               = []
 
   apis = {
     odata1 = {

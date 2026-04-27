@@ -934,6 +934,10 @@ cat scripts/export-waf-evidence.kql
   - Bash: `az role assignment create --assignee-object-id <SP_OBJECT_ID> --assignee-principal-type ServicePrincipal --role "Contributor" --scope "/subscriptions/<SUBSCRIPTION_ID>"`
 - Ensure `TF_NAME_PREFIX` matches your intended naming, then re-run the workflow after RBAC propagation.
 
+**Issue**: Terraform planning fails because AFD WAF path patterns must be one of `/*`
+- **Cause**: AzureRM validates Front Door WAF security policy path patterns against route patterns that already exist on the endpoint. API-specific WAF policies use `/odata1/*` and `/odata2/*`, so the matching AFD routes must exist before the full apply plans the WAF associations.
+- **Solution**: Infra Deploy primes AFD route resources with a targeted apply before the full apply. If running Terraform manually, run `terraform apply -target='module.afd.module.afd.azurerm_cdn_frontdoor_route.routes'` once, then run the normal `terraform apply`.
+
 **Issue**: Terraform init fails with `403 KeyBasedAuthenticationNotPermitted` while listing backend blobs
 - **Cause**: The Terraform backend is trying key-based auth against a storage account that has shared key access disabled.
 - **Solution**:
