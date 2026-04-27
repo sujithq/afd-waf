@@ -34,6 +34,28 @@ try {
   Write-Output "Could not read Azure CLI account context. Continuing with backend data-plane access test."
 }
 
+try {
+  $storageAccount = az storage account show `
+    --name $BackendStorageAccount `
+    --resource-group $BackendResourceGroup `
+    --query "{publicNetworkAccess:publicNetworkAccess, defaultAction:networkRuleSet.defaultAction, allowSharedKeyAccess:allowSharedKeyAccess}" `
+    -o json | ConvertFrom-Json
+
+  Write-Output "Backend storage public network access: $($storageAccount.publicNetworkAccess)"
+  Write-Output "Backend storage network default action: $($storageAccount.defaultAction)"
+  Write-Output "Backend storage shared key access: $($storageAccount.allowSharedKeyAccess)"
+
+  if ($storageAccount.publicNetworkAccess -eq "Disabled") {
+    throw "Backend storage account public network access is Disabled. GitHub-hosted runners cannot reach the storage data plane unless public network access is enabled or the runner is inside an allowed private network."
+  }
+} catch {
+  if ($_.Exception.Message -like "Backend storage account public network access is Disabled*") {
+    throw
+  }
+
+  Write-Output "Could not read backend storage account network properties. Continuing with backend data-plane access test."
+}
+
 $spObjectId = $null
 try {
   $spObjectId = az ad sp show --id $ClientId --query id -o tsv
@@ -99,6 +121,8 @@ $scope
 This is required because the backend uses Azure AD auth with shared key access disabled.
 If you just created the role assignment, wait a few minutes for RBAC propagation and rerun the workflow.
 If it keeps failing, verify that GitHub Actions variable AZURE_CLIENT_ID points to the same service principal that received the role assignment.
+Also verify public network access is enabled for GitHub-hosted runners:
+az storage account show --resource-group $BackendResourceGroup --name $BackendStorageAccount --query '{publicNetworkAccess:publicNetworkAccess, defaultAction:networkRuleSet.defaultAction}'
 "@
 
 throw $message

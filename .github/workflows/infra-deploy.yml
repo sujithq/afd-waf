@@ -79,9 +79,15 @@ jobs:
               --resource-group ${{ vars.TF_BACKEND_RG }} \
               --location ${{ vars.TF_LOCATION }} \
               --sku Standard_LRS \
+              --public-network-access Enabled \
               --allow-shared-key-access false \
               --only-show-errors
           fi
+          az storage account update \
+            --name ${{ vars.TF_BACKEND_SA }} \
+            --resource-group ${{ vars.TF_BACKEND_RG }} \
+            --public-network-access Enabled \
+            --only-show-errors
           az storage container create \
             --name tfstate \
             --account-name ${{ vars.TF_BACKEND_SA }} \

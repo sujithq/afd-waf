@@ -105,11 +105,19 @@ jobs:
               --resource-group ${{ inputs.backend_rg }} \
               --location ${{ inputs.location }} \
               --sku Standard_LRS \
+              --public-network-access Enabled \
               --allow-shared-key-access false \
               --only-show-errors
           else
             echo "Storage account already exists, skipping creation."
           fi
+
+          echo "Ensuring Terraform backend storage is reachable from GitHub-hosted runners..."
+          az storage account update \
+            --name ${{ steps.resolve-sa.outputs.backend_sa }} \
+            --resource-group ${{ inputs.backend_rg }} \
+            --public-network-access Enabled \
+            --only-show-errors
 
           echo "Creating tfstate container..."
           az storage container create \

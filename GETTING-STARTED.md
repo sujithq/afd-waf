@@ -948,7 +948,9 @@ cat scripts/export-waf-evidence.kql
 **Issue**: Terraform init fails with `403 AuthorizationFailure` while listing backend blobs
 - **Cause**: The workflow identity is using Azure AD auth, but it does not yet have backend storage data-plane access, the role assignment has not propagated, or the role was assigned to a different service principal than `AZURE_CLIENT_ID`.
 - **Solution**:
-  - Storage firewall/network rules are unlikely to be the cause when `az storage account show --query networkRuleSet` reports `defaultAction` as `Allow`.
+  - Check both storage networking properties: `az storage account show -g <TF_BACKEND_RG> -n <TF_BACKEND_SA> --query "{publicNetworkAccess:publicNetworkAccess, defaultAction:networkRuleSet.defaultAction}" -o table`.
+  - `networkRuleSet.defaultAction: Allow` rules out firewall allowlist issues, but `publicNetworkAccess: Disabled` still blocks GitHub-hosted runners.
+  - For GitHub-hosted runners, enable public network access on the backend storage account: `az storage account update -g <TF_BACKEND_RG> -n <TF_BACKEND_SA> --public-network-access Enabled`. Bootstrap and Infra Deploy also enforce this setting for the Terraform backend.
   - Confirm `AZURE_CLIENT_ID` is the same app registration that received backend RBAC.
   - Verify the assignment with `az role assignment list --assignee-object-id <SP_OBJECT_ID> --scope "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<TF_BACKEND_RG>/providers/Microsoft.Storage/storageAccounts/<TF_BACKEND_SA>" --include-inherited --output table`.
   - Verify data-plane access with `az storage blob list --account-name <TF_BACKEND_SA> --container-name tfstate --auth-mode login --num-results 1` after logging in as the deployment service principal.
