@@ -55,6 +55,80 @@ function Test-AzResourceExists([string[]]$Arguments) {
   return $LASTEXITCODE -eq 0
 }
 
+function Get-OptionalProperty($Object, [string]$Name, $DefaultValue = $null) {
+  if ($null -ne $Object -and $Object.PSObject.Properties.Name -contains $Name) {
+    return $Object.$Name
+  }
+
+  return $DefaultValue
+}
+
+function Get-OptionalBool($Object, [string]$Name, [bool]$DefaultValue = $false) {
+  $value = Get-OptionalProperty $Object $Name $null
+  if ($null -eq $value) {
+    return $DefaultValue
+  }
+
+  return $value -eq $true
+}
+
+function Get-RelativeDnsRecordName([string]$HostName, [string]$ZoneName) {
+  if ($HostName.Equals($ZoneName, [System.StringComparison]::OrdinalIgnoreCase)) {
+    return "@"
+  }
+
+  $zoneSuffix = ".$ZoneName"
+  if (-not $HostName.EndsWith($zoneSuffix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Host name '$HostName' is not inside DNS zone '$ZoneName'."
+  }
+
+  return $HostName.Substring(0, $HostName.Length - $zoneSuffix.Length)
+}
+
+function Get-ValidationToken($CustomDomain) {
+  $validationProperties = @(
+    $CustomDomain.validationProperties,
+    $CustomDomain.properties.validationProperties
+  ) | Where-Object { $null -ne $_ } | Select-Object -First 1
+
+  if ($null -eq $validationProperties) {
+    return $null
+  }
+
+  return @(
+    $validationProperties.validationToken,
+    $validationProperties.token
+  ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Select-Object -First 1
+}
+
+function Test-TxtRecordValueExists([string]$ResourceGroupName, [string]$ZoneName, [string]$RecordName, [string]$Value) {
+  if ($WhatIf) {
+    return $false
+  }
+
+  $exists = Test-AzResourceExists -Arguments @(
+    "network", "dns", "record-set", "txt", "show",
+    "--resource-group", $ResourceGroupName,
+    "--zone-name", $ZoneName,
+    "--record-set-name", $RecordName
+  )
+
+  if (-not $exists) {
+    return $false
+  }
+
+  $recordSet = Get-AzCliJson -Arguments @(
+    "network", "dns", "record-set", "txt", "show",
+    "--resource-group", $ResourceGroupName,
+    "--zone-name", $ZoneName,
+    "--record-set-name", $RecordName,
+    "--only-show-errors"
+  )
+
+  $values = @($recordSet.txtRecords | ForEach-Object { $_.value } | ForEach-Object { $_ })
+  return $values -contains $Value
+}
+
 $resolvedConfigPath = Resolve-Path $ConfigPath
 $config = Get-Content $resolvedConfigPath -Raw | ConvertFrom-Json
 $domainPolicies = @($config.domainPolicies.PSObject.Properties | Where-Object { $_.Value.enabled -eq $true })
@@ -67,9 +141,9 @@ if ($domainPolicies.Count -eq 0) {
 $profileName = "$NamePrefix-afd-$Environment"
 $endpointName = "$NamePrefix-ep-$Environment"
 
-Invoke-AzCli @("account", "set", "--subscription", $SubscriptionId) | Out-Null
+Invoke-AzCli -Arguments @("account", "set", "--subscription", $SubscriptionId) | Out-Null
 
-$endpointHostName = Invoke-AzCli @(
+$endpointHostName = Invoke-AzCli -Arguments @(
   "afd", "endpoint", "show",
   "--resource-group", $ResourceGroupName,
   "--profile-name", $profileName,
@@ -77,6 +151,10 @@ $endpointHostName = Invoke-AzCli @(
   "--query", "hostName",
   "--output", "tsv"
 )
+
+if ($WhatIf -and [string]::IsNullOrWhiteSpace([string]$endpointHostName)) {
+  $endpointHostName = "$endpointName.azurefd.net"
+}
 
 Write-Host "AFD profile: $profileName"
 Write-Host "AFD endpoint: $endpointName"
@@ -94,11 +172,47 @@ foreach ($domainPolicy in $domainPolicies) {
   $customDomainName = Get-SanitizedResourceName "$NamePrefix-$Environment-$domainName"
   $securityPolicyName = Get-SanitizedResourceName "$domainName-waf-association"
   $wafPolicyName = Get-SanitizedResourceName "$NamePrefix`waf$Environment$domainName"
+  $dns = Get-OptionalProperty $domain "dns" $null
+  $dnsZoneName = [string](Get-OptionalProperty $dns "zoneName" "")
+  $dnsResourceGroupName = [string](Get-OptionalProperty $dns "resourceGroupName" $ResourceGroupName)
+  $createDnsZone = Get-OptionalBool $dns "createZone" $false
+  $manageDnsRecords = Get-OptionalBool $dns "manageRecords" $createDnsZone
+  $dnsTtl = [int](Get-OptionalProperty $dns "ttl" 300)
+  $dnsZoneId = [string](Get-OptionalProperty $domain "dnsZoneId" "")
 
   Write-Host ""
   Write-Host "Processing $domainName -> $hostName"
 
-  $customDomainExists = Test-AzResourceExists @(
+  if (-not [string]::IsNullOrWhiteSpace($dnsZoneName)) {
+    $relativeRecordName = Get-RelativeDnsRecordName $hostName $dnsZoneName
+    if ($createDnsZone) {
+      Write-Host "Creating or updating Azure DNS zone '$dnsZoneName' in resource group '$dnsResourceGroupName'."
+      Invoke-AzCli -Arguments @(
+        "network", "dns", "zone", "create",
+        "--resource-group", $dnsResourceGroupName,
+        "--name", $dnsZoneName,
+        "--only-show-errors"
+      ) | Out-Null
+    }
+
+    $resolvedDnsZoneId = Invoke-AzCli -Arguments @(
+      "network", "dns", "zone", "show",
+      "--resource-group", $dnsResourceGroupName,
+      "--name", $dnsZoneName,
+      "--query", "id",
+      "--output", "tsv"
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($resolvedDnsZoneId)) {
+      $dnsZoneId = [string]$resolvedDnsZoneId
+    }
+
+    if ($WhatIf -and [string]::IsNullOrWhiteSpace($dnsZoneId)) {
+      $dnsZoneId = "/subscriptions/$SubscriptionId/resourceGroups/$dnsResourceGroupName/providers/Microsoft.Network/dnsZones/$dnsZoneName"
+    }
+  }
+
+  $customDomainExists = Test-AzResourceExists -Arguments @(
     "afd", "custom-domain", "show",
     "--resource-group", $ResourceGroupName,
     "--profile-name", $profileName,
@@ -117,8 +231,8 @@ foreach ($domainPolicy in $domainPolicies) {
       "--only-show-errors"
     )
 
-    if ($null -ne $domain.dnsZoneId -and [string]$domain.dnsZoneId -ne "") {
-      $createArgs += @("--azure-dns-zone", [string]$domain.dnsZoneId)
+    if (-not [string]::IsNullOrWhiteSpace($dnsZoneId)) {
+      $createArgs += @("--azure-dns-zone", $dnsZoneId)
     }
 
     Invoke-AzCli $createArgs | Out-Null
@@ -127,7 +241,7 @@ foreach ($domainPolicy in $domainPolicies) {
     Write-Host "Custom domain '$customDomainName' already exists."
   }
 
-  $customDomain = Get-AzCliJson @(
+  $customDomain = Get-AzCliJson -Arguments @(
     "afd", "custom-domain", "show",
     "--resource-group", $ResourceGroupName,
     "--profile-name", $profileName,
@@ -137,10 +251,50 @@ foreach ($domainPolicy in $domainPolicies) {
 
   $customDomainId = if ($WhatIf) { "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.Cdn/profiles/$profileName/customDomains/$customDomainName" } else { $customDomain.id }
 
+  if ($manageDnsRecords) {
+    if ([string]::IsNullOrWhiteSpace($dnsZoneName)) {
+      throw "Domain policy '$domainName' sets dns.manageRecords but does not set dns.zoneName."
+    }
+
+    $relativeRecordName = Get-RelativeDnsRecordName $hostName $dnsZoneName
+    Write-Host "Creating or updating CNAME '$relativeRecordName.$dnsZoneName' -> '$endpointHostName'."
+    Invoke-AzCli -Arguments @(
+      "network", "dns", "record-set", "cname", "set-record",
+      "--resource-group", $dnsResourceGroupName,
+      "--zone-name", $dnsZoneName,
+      "--record-set-name", $relativeRecordName,
+      "--cname", $endpointHostName,
+      "--ttl", "$dnsTtl",
+      "--only-show-errors"
+    ) | Out-Null
+
+    $validationToken = Get-ValidationToken $customDomain
+    if (-not [string]::IsNullOrWhiteSpace([string]$validationToken)) {
+      $txtRecordName = if ($relativeRecordName -eq "@") { "_dnsauth" } else { "_dnsauth.$relativeRecordName" }
+      if (-not (Test-TxtRecordValueExists $dnsResourceGroupName $dnsZoneName $txtRecordName $validationToken)) {
+        Write-Host "Creating TXT '$txtRecordName.$dnsZoneName' for Front Door validation."
+        Invoke-AzCli -Arguments @(
+          "network", "dns", "record-set", "txt", "add-record",
+          "--resource-group", $dnsResourceGroupName,
+          "--zone-name", $dnsZoneName,
+          "--record-set-name", $txtRecordName,
+          "--value", $validationToken,
+          "--only-show-errors"
+        ) | Out-Null
+      }
+      else {
+        Write-Host "TXT '$txtRecordName.$dnsZoneName' already contains the Front Door validation token."
+      }
+    }
+    else {
+      Write-Host "Front Door validation token was not returned by Azure CLI. Inspect the custom domain in Azure and create the _dnsauth TXT record if validation is pending."
+    }
+  }
+
   foreach ($api in @($domain.apis.PSObject.Properties)) {
     $routeName = "$($api.Name)-route"
     Write-Host "Binding route '$routeName' to custom domain '$customDomainName'."
-    Invoke-AzCli @(
+    Invoke-AzCli -Arguments @(
       "afd", "route", "update",
       "--resource-group", $ResourceGroupName,
       "--profile-name", $profileName,
@@ -151,7 +305,7 @@ foreach ($domainPolicy in $domainPolicies) {
     ) | Out-Null
   }
 
-  $wafPolicyId = Invoke-AzCli @(
+  $wafPolicyId = Invoke-AzCli -Arguments @(
     "network", "front-door", "waf-policy", "show",
     "--resource-group", $ResourceGroupName,
     "--name", $wafPolicyName,
@@ -159,7 +313,11 @@ foreach ($domainPolicy in $domainPolicies) {
     "--output", "tsv"
   )
 
-  $securityPolicyExists = Test-AzResourceExists @(
+  if ($WhatIf -and [string]::IsNullOrWhiteSpace([string]$wafPolicyId)) {
+    $wafPolicyId = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.Network/frontDoorWebApplicationFirewallPolicies/$wafPolicyName"
+  }
+
+  $securityPolicyExists = Test-AzResourceExists -Arguments @(
     "afd", "security-policy", "show",
     "--resource-group", $ResourceGroupName,
     "--profile-name", $profileName,
@@ -168,7 +326,7 @@ foreach ($domainPolicy in $domainPolicies) {
 
   $securityPolicyCommand = if ($securityPolicyExists) { "update" } else { "create" }
   Write-Host "$($securityPolicyCommand.Substring(0,1).ToUpperInvariant())$($securityPolicyCommand.Substring(1)) security policy '$securityPolicyName'."
-  Invoke-AzCli @(
+  Invoke-AzCli -Arguments @(
     "afd", "security-policy", $securityPolicyCommand,
     "--resource-group", $ResourceGroupName,
     "--profile-name", $profileName,
@@ -180,6 +338,8 @@ foreach ($domainPolicy in $domainPolicies) {
 
   $domainState = if ($WhatIf) { "WhatIf" } else { $customDomain.domainValidationState }
   Write-Host "Domain validation state: $domainState"
-  Write-Host "Create/verify DNS: CNAME $hostName -> $endpointHostName"
-  Write-Host "If validation is pending, inspect the custom domain in Azure for the required _dnsauth TXT token."
+  if (-not $manageDnsRecords) {
+    Write-Host "Create/verify DNS: CNAME $hostName -> $endpointHostName"
+    Write-Host "If validation is pending, inspect the custom domain in Azure for the required _dnsauth TXT token."
+  }
 }

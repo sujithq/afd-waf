@@ -10,14 +10,16 @@ Implement an AVM-first platform for AFD plus WAF plus APIM with a separate confi
 - Manage WAF tuning via config pipeline using schema-validated JSON payloads.
 - Expose four APIM mock OData APIs for safe detection-first validation.
 - Keep AFD custom domain creation out of the infra Terraform stack.
-- Create AFD custom domains from a separate workflow only for `config/waf/api-policies.json` domain policies with `enabled = true`.
+- Create Azure DNS zones, AFD custom domains, DNS records, route bindings, and domain WAF associations from a separate workflow only for `config/waf/api-policies.json` domain policies with `enabled = true`.
 - Bind each enabled domain's API routes to its custom domain while keeping default-endpoint routes available for smoke testing.
 - Associate each enabled custom domain with its rendered domain WAF policy.
 - Keep disabled domains as declarative config only, with no DNS-dependent Azure resources created.
 
 ## Domain Prerequisites
-- A real FQDN that you own for each enabled domain, for example `api-a.contoso.com` and `api-b.contoso.com`.
-- DNS authority to create the Front Door validation TXT record and traffic CNAME or alias record.
+- A real FQDN that you own for each enabled domain. The staged demo hostnames are `api-a.wafdemo.squintelier.net` and `api-b.wafdemo.squintelier.net` under the Azure DNS zone `wafdemo.squintelier.net`.
+- DNS authority to delegate a newly created Azure DNS zone at the registrar or parent DNS zone.
+- If `dns.createZone` is true, Domain Deploy creates the Azure DNS zone. You still must delegate the zone by copying Azure DNS name servers to the registrar or parent zone.
+- If `dns.manageRecords` is true, Domain Deploy creates the CNAME record and tries to add the Front Door validation TXT record when Azure CLI returns the validation token.
 - No existing Front Door or CDN custom domain using the same hostname.
 - Time for Azure managed certificate issuance after DNS validation.
 
@@ -31,7 +33,7 @@ Implement an AVM-first platform for AFD plus WAF plus APIM with a separate confi
 3. Validate Terraform for the infra and config stacks with backend disabled.
 4. Deploy to dev in detection mode.
 5. Run Domain Deploy after DNS-ready hostnames are configured.
-6. Add DNS validation and CNAME or alias records for enabled custom domains.
+6. Delegate any newly created Azure DNS zone and verify DNS validation records.
 7. Run smoke tests against both the default endpoint and custom domain hostnames.
 8. Promote with approvals to test and prod.
 
@@ -45,3 +47,4 @@ Implement an AVM-first platform for AFD plus WAF plus APIM with a separate confi
 7. Stage 2 `terraform -chdir=infra/terraform validate` with backend disabled -> `Success! The configuration is valid.`
 8. Stage 2 `terraform -chdir=infra/terraform-config validate` with backend disabled -> `Success! The configuration is valid.`
 9. Separate domain workflow script dry run with current disabled domain config -> `No enabled domain policies found in config/waf/api-policies.json. Nothing to create.`
+10. Separate domain workflow script dry run with temporary enabled Azure DNS config -> Previewed DNS zone create, AFD custom domain create, CNAME record create, route binding, and domain WAF security policy create commands.

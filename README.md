@@ -138,9 +138,28 @@ This repository uses a **two-stack IaC model** with separate Terraform configura
 - **Bicep config stack** (`infra/bicep-config/`): Applies the same WAF rule-group overrides from JSON when Config Deploy runs with `iac=bicep`.
 - **WAF config JSON**: `config/waf/base/` contains shared OData exclusions such as `$select`, `$expand`, `$filter`, and `$orderby`. `config/waf/{env}/` can append environment-level tuning. `config/waf/{env}/domains/{domain}/` appends domain-only tuning, such as the current `domain-a` `$search` and `domain-b` `$customVar` examples, without changing other domains.
 
-To add another domain policy package, add it to `config/waf/api-policies.json` with a hostname and APIM API bindings, then optionally add `config/waf/{env}/domains/{domain}/exclusions.json` and `rule-overrides.json` for domain-specific tuning. Domain keys must be lowercase letters, numbers, or hyphens, and every APIM API name must exist in Terraform. Domain packages inherit `config/waf/base/`; use `disabledBaseExclusions` in the domain-specific `exclusions.json` when previewing a domain opt-out from one inherited base exclusion, such as domain A disallowing `$top` while domain B still allows it. To activate the domain policy, replace the placeholder hostname with a real FQDN that you own, optionally set `dnsZoneId` to the Azure DNS zone resource ID, set `enabled: true`, run Infra Deploy and Config Deploy, then run Domain Deploy. Add the Front Door validation TXT record and point the hostname to the AFD endpoint with a CNAME or supported alias record.
+To add another domain policy package, add it to `config/waf/api-policies.json` with a hostname and APIM API bindings, then optionally add `config/waf/{env}/domains/{domain}/exclusions.json` and `rule-overrides.json` for domain-specific tuning. Domain keys must be lowercase letters, numbers, or hyphens, and every APIM API name must exist in Terraform. Domain packages inherit `config/waf/base/`; use `disabledBaseExclusions` in the domain-specific `exclusions.json` when previewing a domain opt-out from one inherited base exclusion, such as domain A disallowing `$top` while domain B still allows it. To activate the domain policy, replace the placeholder hostname with a real FQDN that you own, configure the `dns` object, set `enabled: true`, run Infra Deploy and Config Deploy, then run Domain Deploy.
 
-For enabled custom domains you need DNS control for each hostname. Suggested demo names are `api-a.<your-domain>` and `api-b.<your-domain>`, for example `api-a.contoso.com` and `api-b.contoso.com`. Subdomains are the simplest flow: create the `_dnsauth` TXT validation record requested by Front Door, then create a CNAME from each hostname to the AFD endpoint hostname. Apex/root domains need an alias-capable DNS provider rather than a normal CNAME.
+For enabled custom domains you need DNS control for each hostname. The staged demo names are `api-a.wafdemo.squintelier.net` and `api-b.wafdemo.squintelier.net` under the delegated Azure DNS zone `wafdemo.squintelier.net`. Set `dns.zoneName` to the Azure DNS zone, set `dns.createZone: true` if the workflow should create it, and set `dns.manageRecords: true` if the workflow should create the CNAME and validation TXT records. If the workflow creates a new Azure DNS zone, you still must delegate that zone at the registrar or parent DNS zone by using the Azure DNS name servers. Apex/root domains need an alias-capable DNS provider rather than a normal CNAME.
+
+Example domain activation block:
+
+```json
+"domain-a": {
+   "enabled": true,
+   "hostName": "api-a.wafdemo.squintelier.net",
+   "dns": {
+      "zoneName": "wafdemo.squintelier.net",
+      "createZone": true,
+      "manageRecords": true,
+      "ttl": 300
+   },
+   "apis": {
+      "api1": { "apimApiName": "odata-sap-1" },
+      "api2": { "apimApiName": "odata-sap-2" }
+   }
+}
+```
 
 Validate WAF tuning before opening a pull request with `scripts/test-waf-config.ps1`. Preview effective WAF tuning before deployment with `scripts/show-effective-waf-config.ps1 -Environment dev`. The preview script shows the merged base, environment, and domain-specific policy packages, including inherited exclusions that are disabled for a specific domain package. Add `-AsJson` for machine-readable output.
 

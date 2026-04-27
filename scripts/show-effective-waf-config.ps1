@@ -160,6 +160,7 @@ foreach ($domain in $domainProperties) {
     environment = $Environment
     hostName = $domain.Value.hostName
     dnsZoneId = $domain.Value.dnsZoneId
+    dns = $domain.Value.dns
     customDomainEnabled = $domain.Value.enabled -eq $true
     apis = @($domainApis)
     pathPatterns = @($domainApis | ForEach-Object { $_.pathPattern })
@@ -185,6 +186,11 @@ foreach ($result in $results) {
     Write-Output "Host name: $($result.hostName)"
     if ($null -ne $result.dnsZoneId) {
       Write-Output "DNS zone ID: $($result.dnsZoneId)"
+    }
+    if ($null -ne $result.dns) {
+      Write-Output "DNS zone name: $($result.dns.zoneName)"
+      Write-Output "DNS create zone: $($result.dns.createZone -eq $true)"
+      Write-Output "DNS manage records: $($result.dns.manageRecords -eq $true)"
     }
     Write-Output "Custom domain enabled: $($result.customDomainEnabled)"
   }

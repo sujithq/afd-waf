@@ -5,7 +5,13 @@
   "domainPolicies": {
     "domain-a": {
       "enabled": false,
-      "hostName": "api-a.example.com",
+      "hostName": "api-a.wafdemo.squintelier.net",
+      "dns": {
+        "zoneName": "wafdemo.squintelier.net",
+        "createZone": true,
+        "manageRecords": true,
+        "ttl": 300
+      },
       "apis": {
         "api1": {
           "apimApiName": "odata-sap-1"
@@ -17,7 +23,13 @@
     },
     "domain-b": {
       "enabled": false,
-      "hostName": "api-b.example.com",
+      "hostName": "api-b.wafdemo.squintelier.net",
+      "dns": {
+        "zoneName": "wafdemo.squintelier.net",
+        "createZone": true,
+        "manageRecords": true,
+        "ttl": 300
+      },
       "apis": {
         "api3": {
           "apimApiName": "odata-sap-3"

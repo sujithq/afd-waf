@@ -88,6 +88,22 @@ try {
     if ($domain.Value.enabled -eq $true -and $domain.Value.hostName -match '(^|\.)example\.com$') {
       throw "Domain policy '$($domain.Name)' is enabled but uses placeholder host name '$($domain.Value.hostName)'. Replace it with a real FQDN that you own before enabling the domain."
     }
+
+    $dns = $domain.Value.dns
+    if ($null -ne $dns) {
+      $createsOrManagesAzureDns = $dns.createZone -eq $true -or $dns.manageRecords -eq $true
+      if ($createsOrManagesAzureDns -and [string]::IsNullOrWhiteSpace([string]$dns.zoneName)) {
+        throw "Domain policy '$($domain.Name)' sets dns.createZone or dns.manageRecords but does not set dns.zoneName."
+      }
+
+      if (-not [string]::IsNullOrWhiteSpace([string]$dns.zoneName)) {
+        $zoneSuffix = ".$($dns.zoneName)"
+        $hostName = [string]$domain.Value.hostName
+        if ($hostName -ne [string]$dns.zoneName -and -not $hostName.EndsWith($zoneSuffix, [System.StringComparison]::OrdinalIgnoreCase)) {
+          throw "Domain policy '$($domain.Name)' hostName '$hostName' is not inside dns.zoneName '$($dns.zoneName)'."
+        }
+      }
+    }
   }
 
   foreach ($domain in $domainProperties) {

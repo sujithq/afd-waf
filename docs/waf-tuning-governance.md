@@ -10,7 +10,8 @@
 - Declare domain policy packages in `config/waf/api-policies.json` and bind each domain to one or more APIM API names that exist in Terraform.
 - Keep domain policies disabled until the hostname is a real FQDN you own and DNS validation can be completed.
 - Use the Domain Deploy workflow, not Infra Deploy, for DNS-dependent custom domain creation and route binding.
-- Optionally set `dnsZoneId` when the hostname is hosted in Azure DNS; external DNS zones can leave it unset and create validation and traffic records manually.
+- Use `dns.zoneName`, `dns.createZone`, and `dns.manageRecords` when Domain Deploy should create an Azure DNS zone and DNS records. Newly created zones still require registrar or parent-zone delegation.
+- Optionally set `dnsZoneId` only when you already know the Azure DNS zone resource ID; otherwise prefer the `dns` object.
 - Let Terraform derive AFD route paths from the bound APIM API paths. Do not create path-scoped AFD WAF associations; Front Door accepts only `/*` for each domain security policy association.
 - Use lowercase letters, numbers, or hyphens for API policy keys.
 - Keep derived API paths unique and non-overlapping across domain policy packages.

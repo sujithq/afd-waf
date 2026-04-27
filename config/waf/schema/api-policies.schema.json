@@ -33,6 +33,28 @@
             "type": "string",
             "minLength": 1
           },
+          "dns": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "zoneName": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9.-]+$"
+              },
+              "resourceGroupName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "createZone": { "type": "boolean" },
+              "manageRecords": { "type": "boolean" },
+              "ttl": {
+                "type": "integer",
+                "minimum": 60,
+                "maximum": 86400
+              }
+            }
+          },
           "apis": {
             "type": "object",
             "minProperties": 1,
