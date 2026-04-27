@@ -300,7 +300,7 @@ foreach ($domainPolicy in $domainPolicies) {
       "--profile-name", $profileName,
       "--endpoint-name", $endpointName,
       "--route-name", $routeName,
-      "--custom-domains", $customDomainId,
+      "--custom-domains", $customDomainName,
       "--only-show-errors"
     ) | Out-Null
   }
