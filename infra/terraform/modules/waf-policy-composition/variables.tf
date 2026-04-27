@@ -6,9 +6,10 @@ variable "waf_mode" { type = string }
 
 variable "domain_waf_policies" {
   type = map(object({
-    enabled   = bool
-    host_name = string
-    api_names = list(string)
+    enabled     = bool
+    host_name   = string
+    dns_zone_id = optional(string)
+    api_names   = list(string)
   }))
   default = {}
 }

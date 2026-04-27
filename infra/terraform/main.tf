@@ -21,9 +21,10 @@ locals {
   )
   domain_waf_policies = {
     for domain_name, domain in local.domain_policies : domain_name => {
-      enabled   = try(domain.enabled, false)
-      host_name = domain.hostName
-      api_names = keys(try(domain.apis, {}))
+      enabled     = try(domain.enabled, false)
+      host_name   = domain.hostName
+      dns_zone_id = try(domain.dnsZoneId, null)
+      api_names   = keys(try(domain.apis, {}))
     }
   }
 }
@@ -53,12 +54,14 @@ module "apim" {
 module "afd" {
   source = "./modules/afd-composition"
 
-  resource_group_name = azurerm_resource_group.main.name
-  location            = var.location
-  name_prefix         = var.name_prefix
-  environment         = var.environment
-  waf_policy_id       = module.waf.waf_policy_id
-  base_path_patterns  = local.base_waf_path_patterns
-  api_routes          = local.api_routes
-  apim_gateway_host   = module.apim.apim_gateway_host
+  resource_group_name   = azurerm_resource_group.main.name
+  location              = var.location
+  name_prefix           = var.name_prefix
+  environment           = var.environment
+  waf_policy_id         = module.waf.waf_policy_id
+  domain_waf_policy_ids = module.waf.domain_waf_policy_ids
+  base_path_patterns    = local.base_waf_path_patterns
+  domain_waf_policies   = local.domain_waf_policies
+  api_routes            = local.api_routes
+  apim_gateway_host     = module.apim.apim_gateway_host
 }

@@ -15,6 +15,17 @@ module "afd" {
     }
   }
 
+  front_door_custom_domains = {
+    for domain_name, domain in var.domain_waf_policies : domain_name => {
+      name        = lower(replace("${var.name_prefix}-${var.environment}-${domain_name}", "-", ""))
+      dns_zone_id = domain.dns_zone_id
+      host_name   = domain.host_name
+      tls = {
+        certificate_type = "ManagedCertificate"
+      }
+    } if domain.enabled
+  }
+
   front_door_origin_groups = {
     apim_group = {
       name = "${var.name_prefix}-og-${var.environment}"
@@ -73,6 +84,7 @@ module "afd" {
         supported_protocols    = ["Http", "Https"]
         forwarding_protocol    = "HttpsOnly"
         https_redirect_enabled = true
+        custom_domain_keys     = try(var.domain_waf_policies[route.domain_policy_name].enabled, false) ? [route.domain_policy_name] : []
       }
     }
   )
@@ -93,6 +105,30 @@ resource "azurerm_cdn_frontdoor_security_policy" "base_waf_association" {
 
         domain {
           cdn_frontdoor_domain_id = module.afd.frontdoor_endpoints["endpoint"].id
+        }
+      }
+    }
+  }
+}
+
+resource "azurerm_cdn_frontdoor_security_policy" "domain_waf_association" {
+  for_each = {
+    for domain_name, domain in var.domain_waf_policies : domain_name => domain
+    if domain.enabled
+  }
+
+  name                     = lower(replace("${each.key}-waf-association", "-", ""))
+  cdn_frontdoor_profile_id = module.afd.resource_id
+
+  security_policies {
+    firewall {
+      cdn_frontdoor_firewall_policy_id = var.domain_waf_policy_ids[each.key]
+
+      association {
+        patterns_to_match = ["/*"]
+
+        domain {
+          cdn_frontdoor_domain_id = module.afd.frontdoor_custom_domains[each.key].id
         }
       }
     }

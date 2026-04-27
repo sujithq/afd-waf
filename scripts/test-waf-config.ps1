@@ -85,6 +85,12 @@ try {
   }
 
   foreach ($domain in $domainProperties) {
+    if ($domain.Value.enabled -eq $true -and $domain.Value.hostName -match '(^|\.)example\.com$') {
+      throw "Domain policy '$($domain.Name)' is enabled but uses placeholder host name '$($domain.Value.hostName)'. Replace it with a real FQDN that you own before enabling the domain."
+    }
+  }
+
+  foreach ($domain in $domainProperties) {
     foreach ($api in @($domain.Value.apis.PSObject.Properties)) {
       if (-not $apimApiPathsByName.ContainsKey($api.Value.apimApiName)) {
         throw "Domain policy '$($domain.Name)' API '$($api.Name)' references APIM API '$($api.Value.apimApiName)', but no matching API name is defined in $apimCompositionPath"

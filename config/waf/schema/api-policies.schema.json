@@ -29,6 +29,10 @@
             "minLength": 1,
             "pattern": "^[A-Za-z0-9.-]+$"
           },
+          "dnsZoneId": {
+            "type": "string",
+            "minLength": 1
+          },
           "apis": {
             "type": "object",
             "minProperties": 1,

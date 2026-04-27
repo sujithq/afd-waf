@@ -159,6 +159,7 @@ foreach ($domain in $domainProperties) {
     policy = $domain.Name
     environment = $Environment
     hostName = $domain.Value.hostName
+    dnsZoneId = $domain.Value.dnsZoneId
     customDomainEnabled = $domain.Value.enabled -eq $true
     apis = @($domainApis)
     pathPatterns = @($domainApis | ForEach-Object { $_.pathPattern })
@@ -182,6 +183,9 @@ foreach ($result in $results) {
   Write-Output "Policy: $($result.policy)"
   if ($null -ne $result.hostName) {
     Write-Output "Host name: $($result.hostName)"
+    if ($null -ne $result.dnsZoneId) {
+      Write-Output "DNS zone ID: $($result.dnsZoneId)"
+    }
     Write-Output "Custom domain enabled: $($result.customDomainEnabled)"
   }
   if ($null -ne $result.apis -and @($result.apis).Count -gt 0) {
