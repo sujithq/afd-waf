@@ -98,24 +98,3 @@ resource "azurerm_cdn_frontdoor_security_policy" "base_waf_association" {
     }
   }
 }
-
-resource "azurerm_cdn_frontdoor_security_policy" "api_waf_association" {
-  for_each = var.enable_api_waf_associations ? var.api_waf_policies : {}
-
-  name                     = "${each.key}-waf-association"
-  cdn_frontdoor_profile_id = module.afd.resource_id
-
-  security_policies {
-    firewall {
-      cdn_frontdoor_firewall_policy_id = var.api_waf_policy_ids[each.key]
-
-      association {
-        patterns_to_match = each.value.path_patterns
-
-        domain {
-          cdn_frontdoor_domain_id = module.afd.frontdoor_endpoints["endpoint"].id
-        }
-      }
-    }
-  }
-}

@@ -143,10 +143,21 @@ jobs:
                 "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$RG_NAME"
             fi
           fi
-          TF_VAR_enable_api_waf_associations=false terraform apply -auto-approve -input=false
           terraform apply -auto-approve -input=false
           echo "--- Infra outputs (pass to config-deploy) ---"
           terraform output -json | jq '{waf_policy_id: .waf_policy_id.value, waf_policy_name: .waf_policy_name.value, api_waf_policy_ids: .api_waf_policy_ids.value, api_waf_policy_names: .api_waf_policy_names.value}'
+
+      - name: Sync API WAF associations
+        if: inputs.iac == 'terraform'
+        shell: pwsh
+        run: |
+          ./scripts/sync-afd-waf-associations.ps1 `
+            -SubscriptionId "${{ vars.AZURE_SUBSCRIPTION_ID }}" `
+            -ResourceGroupName "${{ vars.TF_NAME_PREFIX }}-${{ inputs.environment }}-rg" `
+            -ProfileName "${{ vars.TF_NAME_PREFIX }}-afd-${{ inputs.environment }}" `
+            -EndpointName "${{ vars.TF_NAME_PREFIX }}-ep-${{ inputs.environment }}" `
+            -NamePrefix "${{ vars.TF_NAME_PREFIX }}" `
+            -Environment "${{ inputs.environment }}"
 
   config-deploy:
     needs: deploy
