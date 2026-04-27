@@ -15,8 +15,8 @@ This guide walks you through setting up this repository from scratch, from local
 **Table of Contents**
 1. [Prerequisites](#prerequisites)
 2. [Local Environment Setup](#local-environment-setup)
-3. [Azure Subscription Setup](#azure-subscription-setup)
-4. [GitHub OIDC Federation Setup](#github-oidc-federation-setup)
+3. [GitHub OIDC Federation Setup](#github-oidc-federation-setup)
+4. [Azure Subscription Setup](#azure-subscription-setup)
 5. [Quick Start with Workflows](#quick-start-with-workflows)
 6. [GitHub Repository Configuration](#github-repository-configuration)
 7. [First Local Validation](#first-local-validation)
@@ -108,77 +108,6 @@ az account set --subscription <SUBSCRIPTION_ID>
 # Verify
 az account show
 ```
-
----
-
-## Azure Subscription Setup
-
-For the tested Terraform path, there are two setup tracks:
-
-- **Workflow setup**: use the **Bootstrap** workflow after OIDC is configured. Bootstrap creates the Terraform backend resource group, storage account, `tfstate` container, and backend data-plane RBAC.
-- **Manual setup**: create the Terraform backend yourself with Azure CLI, then run Terraform locally or through GitHub Actions.
-
-Application resource groups such as `acafd-dev-rg`, `acafd-test-rg`, and `acafd-prod-rg` are Terraform-owned. Do not pre-create them for the normal Terraform workflow unless you are intentionally importing existing resource groups.
-
-### Manual Terraform Backend Bootstrap
-
-Skip this section when using the **Bootstrap** workflow. Use it only when you want a fully manual backend setup.
-
-**PowerShell**:
-```powershell
-$SUBSCRIPTION_ID = (az account show --query id -o tsv)
-$LOCATION = "swedencentral"
-$TF_BACKEND_RG = "afd-waf-tfstate-rg"
-$TF_BACKEND_SA = "afdwaftf$(Get-Date -UFormat "%s")"
-
-az group create `
-  --name $TF_BACKEND_RG `
-  --location $LOCATION
-
-az storage account create `
-  --name $TF_BACKEND_SA `
-  --resource-group $TF_BACKEND_RG `
-  --location $LOCATION `
-  --sku Standard_LRS `
-  --allow-shared-key-access false
-
-az storage container create `
-  --account-name $TF_BACKEND_SA `
-  --name tfstate `
-  --auth-mode login
-
-Write-Host "TF_BACKEND_RG=$TF_BACKEND_RG"
-Write-Host "TF_BACKEND_SA=$TF_BACKEND_SA"
-```
-
-**Bash**:
-```bash
-SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-LOCATION="swedencentral"
-TF_BACKEND_RG="afd-waf-tfstate-rg"
-TF_BACKEND_SA="afdwaftf$(date +%s)"
-
-az group create \
-  --name "$TF_BACKEND_RG" \
-  --location "$LOCATION"
-
-az storage account create \
-  --name "$TF_BACKEND_SA" \
-  --resource-group "$TF_BACKEND_RG" \
-  --location "$LOCATION" \
-  --sku Standard_LRS \
-  --allow-shared-key-access false
-
-az storage container create \
-  --account-name "$TF_BACKEND_SA" \
-  --name tfstate \
-  --auth-mode login
-
-echo "TF_BACKEND_RG=$TF_BACKEND_RG"
-echo "TF_BACKEND_SA=$TF_BACKEND_SA"
-```
-
-If GitHub Actions will use this manually created backend, grant the deployment service principal `Storage Blob Data Contributor` on the backend storage account. The Bootstrap workflow does this automatically.
 
 ---
 
@@ -424,6 +353,77 @@ az role assignment list \
 # Note: If you query with --assignee "$CLIENT_ID" and see no rows, verify CLIENT_ID is set.
 # For deterministic results, prefer --assignee-object-id with an explicit scope.
 ```
+
+---
+
+## Azure Subscription Setup
+
+For the tested Terraform path, there are two setup tracks:
+
+- **Workflow setup**: use the **Bootstrap** workflow after OIDC is configured. Bootstrap creates the Terraform backend resource group, storage account, `tfstate` container, and backend data-plane RBAC.
+- **Manual setup**: create the Terraform backend yourself with Azure CLI, then run Terraform locally or through GitHub Actions.
+
+Application resource groups such as `acafd-dev-rg`, `acafd-test-rg`, and `acafd-prod-rg` are Terraform-owned. Do not pre-create them for the normal Terraform workflow unless you are intentionally importing existing resource groups.
+
+### Manual Terraform Backend Bootstrap
+
+Skip this section when using the **Bootstrap** workflow. Use it only when you want a fully manual backend setup.
+
+**PowerShell**:
+```powershell
+$SUBSCRIPTION_ID = (az account show --query id -o tsv)
+$LOCATION = "swedencentral"
+$TF_BACKEND_RG = "afd-waf-tfstate-rg"
+$TF_BACKEND_SA = "afdwaftf$(Get-Date -UFormat "%s")"
+
+az group create `
+  --name $TF_BACKEND_RG `
+  --location $LOCATION
+
+az storage account create `
+  --name $TF_BACKEND_SA `
+  --resource-group $TF_BACKEND_RG `
+  --location $LOCATION `
+  --sku Standard_LRS `
+  --allow-shared-key-access false
+
+az storage container create `
+  --account-name $TF_BACKEND_SA `
+  --name tfstate `
+  --auth-mode login
+
+Write-Host "TF_BACKEND_RG=$TF_BACKEND_RG"
+Write-Host "TF_BACKEND_SA=$TF_BACKEND_SA"
+```
+
+**Bash**:
+```bash
+SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+LOCATION="swedencentral"
+TF_BACKEND_RG="afd-waf-tfstate-rg"
+TF_BACKEND_SA="afdwaftf$(date +%s)"
+
+az group create \
+  --name "$TF_BACKEND_RG" \
+  --location "$LOCATION"
+
+az storage account create \
+  --name "$TF_BACKEND_SA" \
+  --resource-group "$TF_BACKEND_RG" \
+  --location "$LOCATION" \
+  --sku Standard_LRS \
+  --allow-shared-key-access false
+
+az storage container create \
+  --account-name "$TF_BACKEND_SA" \
+  --name tfstate \
+  --auth-mode login
+
+echo "TF_BACKEND_RG=$TF_BACKEND_RG"
+echo "TF_BACKEND_SA=$TF_BACKEND_SA"
+```
+
+If GitHub Actions will use this manually created backend, grant the deployment service principal `Storage Blob Data Contributor` on the backend storage account. The Bootstrap workflow does this automatically.
 
 ---
 
