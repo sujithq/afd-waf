@@ -142,37 +142,37 @@ if ($AsJson) {
   exit 0
 }
 
-Write-Host "Environment: $Environment"
-Write-Host ""
+Write-Output "Environment: $Environment"
+Write-Output ""
 
 foreach ($result in $results) {
-  Write-Host "Policy: $($result.policy)"
-  Write-Host "Path patterns: $(@($result.pathPatterns) -join ', ')"
-  Write-Host "Config sources: $(@($result.configSources) -join ', ')"
-  Write-Host "Inherited base exclusions: $($result.inheritedBaseExclusions)"
+  Write-Output "Policy: $($result.policy)"
+  Write-Output "Path patterns: $(@($result.pathPatterns) -join ', ')"
+  Write-Output "Config sources: $(@($result.configSources) -join ', ')"
+  Write-Output "Inherited base exclusions: $($result.inheritedBaseExclusions)"
 
   if (@($result.disabledBaseExclusions).Count -gt 0) {
-    Write-Host "Disabled inherited exclusions:"
+    Write-Output "Disabled inherited exclusions:"
     foreach ($exclusion in @($result.disabledBaseExclusions)) {
-      Write-Host "  - $(Format-Exclusion $exclusion)"
+      Write-Output "  - $(Format-Exclusion $exclusion)"
     }
   } else {
-    Write-Host "Disabled inherited exclusions: none"
+    Write-Output "Disabled inherited exclusions: none"
   }
 
   if (@($result.effectiveRuleOverrides).Count -gt 0) {
-    Write-Host "Effective rule overrides:"
+    Write-Output "Effective rule overrides:"
     foreach ($override in @($result.effectiveRuleOverrides)) {
-      Write-Host "  - $($override.ruleGroup) / $($override.ruleId) / $($override.action)"
+      Write-Output "  - $($override.ruleGroup) / $($override.ruleId) / $($override.action)"
     }
   } else {
-    Write-Host "Effective rule overrides: none"
+    Write-Output "Effective rule overrides: none"
   }
 
-  Write-Host "Effective exclusions:"
+  Write-Output "Effective exclusions:"
   foreach ($exclusion in @($result.effectiveExclusions)) {
-    Write-Host "  - $(Format-Exclusion $exclusion)"
+    Write-Output "  - $(Format-Exclusion $exclusion)"
   }
 
-  Write-Host ""
+  Write-Output ""
 }

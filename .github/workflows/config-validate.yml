@@ -6,6 +6,8 @@ on:
   pull_request:
     paths:
       - 'config/waf/**'
+      - 'scripts/show-effective-waf-config.ps1'
+      - '.github/workflows/config-validate.yml'
 
 permissions:
   contents: read
@@ -115,4 +117,23 @@ jobs:
             if ($txt -match '"ruleId"\s*:\s*"\*"') {
               throw "Wildcard ruleId is not allowed"
             }
+          }
+
+      - name: Summarize effective WAF config
+        shell: pwsh
+        run: |
+          $environments = @('dev', 'test', 'prod')
+
+          "## Effective WAF Config" >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          'This preview is generated from `config/waf/base/`, `config/waf/{env}/`, `config/waf/{env}/apis/{api}/`, and `config/waf/api-policies.json`.' >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+
+          foreach ($environment in $environments) {
+            "### $environment" >> $env:GITHUB_STEP_SUMMARY
+            "" >> $env:GITHUB_STEP_SUMMARY
+            "``````text" >> $env:GITHUB_STEP_SUMMARY
+            ./scripts/show-effective-waf-config.ps1 -Environment $environment 2>&1 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            "``````" >> $env:GITHUB_STEP_SUMMARY
+            "" >> $env:GITHUB_STEP_SUMMARY
           }
