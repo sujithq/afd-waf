@@ -145,7 +145,7 @@ jobs:
           fi
           terraform apply -auto-approve -input=false
           echo "--- Infra outputs (pass to config-deploy) ---"
-          terraform output -json | jq '{waf_policy_id: .waf_policy_id.value, waf_policy_name: .waf_policy_name.value, domain_waf_policy_ids: .domain_waf_policy_ids.value, domain_waf_policy_names: .domain_waf_policy_names.value, custom_domain_ids: .custom_domain_ids.value, custom_domain_host_names: .custom_domain_host_names.value}'
+          terraform output -json | jq '{waf_policy_id: .waf_policy_id.value, waf_policy_name: .waf_policy_name.value, domain_waf_policy_ids: .domain_waf_policy_ids.value, domain_waf_policy_names: .domain_waf_policy_names.value}'
 
   config-deploy:
     needs: deploy

@@ -8,7 +8,9 @@ on:
       - 'config/waf/**'
       - 'scripts/show-effective-waf-config.ps1'
       - 'scripts/test-waf-config.ps1'
+      - 'scripts/deploy-afd-domains.ps1'
       - '.github/workflows/config-validate.yml'
+      - '.github/workflows/domain-deploy.yml'
 
 permissions:
   contents: read
