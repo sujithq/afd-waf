@@ -71,33 +71,45 @@ try {
     return "/$apimPath/*"
   }
 
-  $apiProperties = @()
-  if ($null -ne $apiPolicyConfig.apiPolicies) {
-    $apiProperties = @($apiPolicyConfig.apiPolicies.PSObject.Properties)
+  $domainProperties = @()
+  if ($null -ne $apiPolicyConfig.domainPolicies) {
+    $domainProperties = @($apiPolicyConfig.domainPolicies.PSObject.Properties)
   }
 
-  $declaredApis = @($apiProperties | ForEach-Object { $_.Name })
-  foreach ($api in $apiProperties) {
-    if (-not $apimApiPathsByName.ContainsKey($api.Value.apimApiName)) {
-      throw "API policy '$($api.Name)' references APIM API '$($api.Value.apimApiName)', but no matching API name is defined in $apimCompositionPath"
+  $declaredDomains = @($domainProperties | ForEach-Object { $_.Name })
+  $hostNames = @($domainProperties | ForEach-Object { $_.Value.hostName })
+  foreach ($group in $hostNames | Group-Object) {
+    if ($group.Count -gt 1) {
+      throw "Domain host name '$($group.Name)' is declared by multiple WAF domain policies"
+    }
+  }
+
+  foreach ($domain in $domainProperties) {
+    foreach ($api in @($domain.Value.apis.PSObject.Properties)) {
+      if (-not $apimApiPathsByName.ContainsKey($api.Value.apimApiName)) {
+        throw "Domain policy '$($domain.Name)' API '$($api.Name)' references APIM API '$($api.Value.apimApiName)', but no matching API name is defined in $apimCompositionPath"
+      }
     }
   }
 
   $pathPatterns = @()
 
-  foreach ($api in $apiProperties) {
-    $apiPathPattern = Get-ApiPathPattern ($apimApiPathsByName[$api.Value.apimApiName])
-    $pathPatterns += [pscustomobject]@{
-      policy = $api.Name
-      pattern = $apiPathPattern
+  foreach ($domain in $domainProperties) {
+    foreach ($api in @($domain.Value.apis.PSObject.Properties)) {
+      $apiPathPattern = Get-ApiPathPattern ($apimApiPathsByName[$api.Value.apimApiName])
+      $pathPatterns += [pscustomobject]@{
+        policy = $domain.Name
+        api = $api.Name
+        pattern = $apiPathPattern
+      }
     }
   }
 
   $patternsByValue = $pathPatterns | Group-Object -Property pattern
   foreach ($group in $patternsByValue) {
     if ($group.Count -gt 1) {
-      $owners = ($group.Group | ForEach-Object { $_.policy }) -join ", "
-      throw "Path pattern '$($group.Name)' is declared by multiple WAF policies: $owners"
+      $owners = ($group.Group | ForEach-Object { "$($_.policy)/$($_.api)" }) -join ", "
+      throw "Path pattern '$($group.Name)' is declared by multiple domain policy APIs: $owners"
     }
   }
 
@@ -107,15 +119,15 @@ try {
       $right = $pathPatterns[$j]
 
       if (Test-PathPatternOverlap $left $right) {
-        throw "API path pattern '$($left.pattern)' in API policy '$($left.policy)' overlaps with '$($right.pattern)' in API policy '$($right.policy)'. Use one policy for the broader path or make the patterns non-overlapping."
+        throw "API path pattern '$($left.pattern)' in domain policy '$($left.policy)' overlaps with '$($right.pattern)' in domain policy '$($right.policy)'. Use one policy for the broader path or make the patterns non-overlapping."
       }
     }
   }
 
-  $apiOverlayDirs = @(Get-ChildItem config/waf -Directory -Recurse | Where-Object { $_.Parent.Name -eq "apis" })
-  foreach ($dir in $apiOverlayDirs) {
-    if ($declaredApis -notcontains $dir.Name) {
-      throw "API overlay folder '$($dir.FullName)' is not declared in config/waf/api-policies.json"
+  $domainOverlayDirs = @(Get-ChildItem config/waf -Directory -Recurse | Where-Object { $_.Parent.Name -eq "domains" })
+  foreach ($dir in $domainOverlayDirs) {
+    if ($declaredDomains -notcontains $dir.Name) {
+      throw "Domain overlay folder '$($dir.FullName)' is not declared in config/waf/api-policies.json"
     }
   }
 
@@ -151,17 +163,17 @@ try {
         continue
       }
 
-      if ($file.Directory.Parent.Name -ne "apis") {
-        throw "disabledBaseExclusions is only allowed in API-specific config packages: $($file.FullName)"
+      if ($file.Directory.Parent.Name -ne "domains") {
+        throw "disabledBaseExclusions is only allowed in domain-specific config packages: $($file.FullName)"
       }
 
-      if ($declaredApis -notcontains $file.Directory.Name) {
-        throw "API config package '$($file.Directory.FullName)' disables a base exclusion but is not declared in config/waf/api-policies.json"
+      if ($declaredDomains -notcontains $file.Directory.Name) {
+        throw "Domain config package '$($file.Directory.FullName)' disables a base exclusion but is not declared in config/waf/api-policies.json"
       }
 
       $disabledKey = Get-ExclusionKey $disabledExclusion
       if ($baseExclusionKeys -notcontains $disabledKey) {
-        throw "API config package '$($file.Directory.FullName)' disables a base exclusion that does not exist: $disabledKey"
+        throw "Domain config package '$($file.Directory.FullName)' disables a base exclusion that does not exist: $disabledKey"
       }
     }
   }

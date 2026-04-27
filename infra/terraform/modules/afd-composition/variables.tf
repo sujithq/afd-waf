@@ -4,9 +4,10 @@ variable "name_prefix" { type = string }
 variable "environment" { type = string }
 variable "waf_policy_id" { type = string }
 variable "base_path_patterns" { type = list(string) }
-variable "api_waf_policies" {
+variable "api_routes" {
   type = map(object({
-    path_patterns = list(string)
+    domain_policy_name = string
+    path_patterns      = list(string)
   }))
   default = {}
 }

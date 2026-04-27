@@ -65,10 +65,10 @@ jobs:
             --resource-group "$RG" \
             --query "name" --output tsv >/dev/null
 
-          for API_NAME in $(jq -r '.apiPolicies | keys[]?' config/waf/api-policies.json); do
-            API_WAF_NAME=$(echo "${PREFIX}waf${ENV}${API_NAME}" | tr '[:upper:]' '[:lower:]' | tr -d '-')
+          for DOMAIN_NAME in $(jq -r '.domainPolicies | keys[]?' config/waf/api-policies.json); do
+            DOMAIN_WAF_NAME=$(echo "${PREFIX}waf${ENV}${DOMAIN_NAME}" | tr '[:upper:]' '[:lower:]' | tr -d '-')
             az network front-door waf-policy show \
-              --name "$API_WAF_NAME" \
+              --name "$DOMAIN_WAF_NAME" \
               --resource-group "$RG" \
               --query "name" --output tsv >/dev/null
           done

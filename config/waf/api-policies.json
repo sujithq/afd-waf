@@ -2,12 +2,30 @@
   "base": {
     "enabled": true
   },
-  "apiPolicies": {
-    "api1": {
-      "apimApiName": "odata-sap-1"
+  "domainPolicies": {
+    "domain-a": {
+      "enabled": false,
+      "hostName": "api-a.example.com",
+      "apis": {
+        "api1": {
+          "apimApiName": "odata-sap-1"
+        },
+        "api2": {
+          "apimApiName": "odata-sap-2"
+        }
+      }
     },
-    "api2": {
-      "apimApiName": "odata-sap-2"
+    "domain-b": {
+      "enabled": false,
+      "hostName": "api-b.example.com",
+      "apis": {
+        "api3": {
+          "apimApiName": "odata-sap-3"
+        },
+        "api4": {
+          "apimApiName": "odata-sap-4"
+        }
+      }
     }
   }
 }

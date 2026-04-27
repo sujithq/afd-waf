@@ -1,0 +1,9 @@
+{
+  "metadata": {
+    "changeTicket": "CHG-DEV-DOMAIN-B-0002",
+    "owner": "domain-b-team",
+    "reason": "No broad disable, only domain B-specific exclusions",
+    "expiresOn": "2026-12-31"
+  },
+  "overrides": []
+}

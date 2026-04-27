@@ -64,12 +64,12 @@ module "afd" {
     }
     },
     {
-      for api_name, policy in var.api_waf_policies : api_name => {
+      for api_name, route in var.api_routes : api_name => {
         name                   = "${api_name}-route"
         endpoint_key           = "endpoint"
         origin_group_key       = "apim_group"
         origin_keys            = ["apim_origin"]
-        patterns_to_match      = policy.path_patterns
+        patterns_to_match      = route.path_patterns
         supported_protocols    = ["Http", "Https"]
         forwarding_protocol    = "HttpsOnly"
         https_redirect_enabled = true

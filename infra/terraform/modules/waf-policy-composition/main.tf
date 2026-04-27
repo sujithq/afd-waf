@@ -23,8 +23,8 @@ moved {
   to   = azurerm_cdn_frontdoor_firewall_policy.waf
 }
 
-resource "azurerm_cdn_frontdoor_firewall_policy" "api" {
-  for_each = var.api_waf_policies
+resource "azurerm_cdn_frontdoor_firewall_policy" "domain" {
+  for_each = var.domain_waf_policies
 
   name                = lower(replace("${var.name_prefix}waf${var.environment}${each.key}", "-", ""))
   resource_group_name = var.resource_group_name
@@ -34,5 +34,13 @@ resource "azurerm_cdn_frontdoor_firewall_policy" "api" {
 
   lifecycle {
     ignore_changes = [managed_rule, custom_rule, mode, enabled]
+  }
+}
+
+removed {
+  from = azurerm_cdn_frontdoor_firewall_policy.api
+
+  lifecycle {
+    destroy = false
   }
 }

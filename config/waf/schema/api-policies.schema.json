@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "WAF API policy registry",
+  "title": "WAF domain policy registry",
   "type": "object",
-  "required": ["base", "apiPolicies"],
+  "required": ["base", "domainPolicies"],
   "additionalProperties": false,
   "properties": {
     "base": {
@@ -13,20 +13,40 @@
         "enabled": { "type": "boolean" }
       }
     },
-    "apiPolicies": {
+    "domainPolicies": {
       "type": "object",
       "propertyNames": {
         "pattern": "^[a-z0-9-]+$"
       },
       "additionalProperties": {
         "type": "object",
-        "required": ["apimApiName"],
+        "required": ["enabled", "hostName", "apis"],
         "additionalProperties": false,
         "properties": {
-          "apimApiName": {
+          "enabled": { "type": "boolean" },
+          "hostName": {
             "type": "string",
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9._-]+$"
+            "pattern": "^[A-Za-z0-9.-]+$"
+          },
+          "apis": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {
+              "pattern": "^[a-z0-9-]+$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "required": ["apimApiName"],
+              "additionalProperties": false,
+              "properties": {
+                "apimApiName": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9._-]+$"
+                }
+              }
+            }
           }
         }
       }

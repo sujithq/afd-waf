@@ -936,7 +936,7 @@ cat scripts/export-waf-evidence.kql
 
 **Issue**: AFD WAF security policy creation fails because path patterns must be one of `/*`
 - **Cause**: Front Door security policy associations for the endpoint default domain are domain-wide. Azure rejects route-specific WAF association patterns such as `/odata1/*` and `/odata2/*`, even when those AFD routes exist.
-- **Solution**: Use one active base WAF policy associated to `/*` for the endpoint default domain. API-specific WAF policy packages can be retained for preview or future separate domains/endpoints, but they cannot be activated as path-scoped associations on the same endpoint default domain.
+- **Solution**: Use one active base WAF policy associated to `/*` for the endpoint default domain. Domain-specific WAF policy packages can be rendered for future separate domains, but they cannot be activated as path-scoped associations on the same endpoint default domain.
 
 **Issue**: Terraform init fails with `403 KeyBasedAuthenticationNotPermitted` while listing backend blobs
 - **Cause**: The Terraform backend is trying key-based auth against a storage account that has shared key access disabled.
@@ -976,9 +976,9 @@ After successful dev deployment:
 
 1. **Deploy to test and prod** using the same Infra Deploy workflow (select different environments)
 
-2. **Run Config Deploy** after every Infra Deploy to apply WAF managed rules. Trigger the **Config Deploy** workflow manually for the same environment and select `iac=terraform`. Terraform imports the base WAF policy plus any API-specific WAF policies declared in `config/waf/api-policies.json`, applies shared OData exclusions from `config/waf/base/`, applies environment additions from `config/waf/{env}/`, and applies API-only additions from `config/waf/{env}/apis/{api}/` when those folders exist.
+2. **Run Config Deploy** after every Infra Deploy to apply WAF managed rules. Trigger the **Config Deploy** workflow manually for the same environment and select `iac=terraform`. Terraform imports the base WAF policy plus any domain-specific WAF policies declared in `config/waf/api-policies.json`, applies shared OData exclusions from `config/waf/base/`, applies environment additions from `config/waf/{env}/`, and applies domain-only additions from `config/waf/{env}/domains/{domain}/` when those folders exist.
 
-3. **Update WAF config** for future changes. Add common OData query arguments to `config/waf/base/`. Add environment-wide tuning to `config/waf/{env}/`. Add API-only tuning to `config/waf/{env}/apis/{api}/`. For a new isolated API policy, first add the API key and APIM API name to `config/waf/api-policies.json`; Terraform derives the AFD route path from the APIM API path. Use `disabledBaseExclusions` in the API-specific `exclusions.json` when an API must opt out of one inherited base exclusion. Run `scripts/show-effective-waf-config.ps1 -Environment dev` to preview the merged policy before deployment. Push changes so Config Validate checks schema and guardrails on PR, then merge to `main` and run Config Deploy manually for the target environment. API-only additions do not change other APIs.
+3. **Update WAF config** for future changes. Add common OData query arguments to `config/waf/base/`. Add environment-wide tuning to `config/waf/{env}/`. Add domain-only tuning to `config/waf/{env}/domains/{domain}/`. For a new isolated domain policy, first add the domain key, hostname, and APIM API bindings to `config/waf/api-policies.json`; Terraform derives the AFD route paths from the APIM API paths. Use `disabledBaseExclusions` in the domain-specific `exclusions.json` when a domain must opt out of one inherited base exclusion. Run `scripts/show-effective-waf-config.ps1 -Environment dev` to preview the merged policy before deployment. Push changes so Config Validate checks schema and guardrails on PR, then merge to `main` and run Config Deploy manually for the target environment. Domain-only additions do not change other domains.
 
 4. **Promote to Prevention mode**:
    - Update `waf_mode = "Prevention"` in `infra/terraform-config/env/prod.tfvars`

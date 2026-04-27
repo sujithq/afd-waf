@@ -84,6 +84,90 @@ XML
         }
       }
     }
+    odata3 = {
+      name                  = "odata-sap-3"
+      type                  = "http"
+      display_name          = "OData Mock API 3"
+      path                  = "odata3"
+      revision              = "1"
+      protocols             = ["https"]
+      service_url           = "https://example.com/odata3"
+      subscription_required = false
+      operations = {
+        entities = {
+          display_name = "List Entities"
+          method       = "GET"
+          url_template = "/Entities"
+          policy = {
+            xml_content = <<XML
+<policies>
+  <inbound>
+    <base />
+    <return-response>
+      <set-status code="200" reason="OK" />
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+      </set-header>
+      <set-body>{"value":[{"Id":20,"Name":"Kappa"},{"Id":21,"Name":"Lambda"}]}</set-body>
+    </return-response>
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>
+XML
+          }
+        }
+      }
+    }
+    odata4 = {
+      name                  = "odata-sap-4"
+      type                  = "http"
+      display_name          = "OData Mock API 4"
+      path                  = "odata4"
+      revision              = "1"
+      protocols             = ["https"]
+      service_url           = "https://example.com/odata4"
+      subscription_required = false
+      operations = {
+        entities = {
+          display_name = "List Entities"
+          method       = "GET"
+          url_template = "/Entities"
+          policy = {
+            xml_content = <<XML
+<policies>
+  <inbound>
+    <base />
+    <return-response>
+      <set-status code="200" reason="OK" />
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+      </set-header>
+      <set-body>{"value":[{"Id":30,"Name":"Sigma"},{"Id":31,"Name":"Tau"}]}</set-body>
+    </return-response>
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>
+XML
+          }
+        }
+      }
+    }
   }
 }
 

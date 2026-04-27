@@ -33,7 +33,7 @@ jobs:
 
           "## Effective WAF Config" >> $env:GITHUB_STEP_SUMMARY
           "" >> $env:GITHUB_STEP_SUMMARY
-          'This preview is generated from `config/waf/base/`, `config/waf/{env}/`, `config/waf/{env}/apis/{api}/`, and `config/waf/api-policies.json`.' >> $env:GITHUB_STEP_SUMMARY
+          'This preview is generated from `config/waf/base/`, `config/waf/{env}/`, `config/waf/{env}/domains/{domain}/`, and `config/waf/api-policies.json`.' >> $env:GITHUB_STEP_SUMMARY
           "" >> $env:GITHUB_STEP_SUMMARY
 
           foreach ($environment in $environments) {

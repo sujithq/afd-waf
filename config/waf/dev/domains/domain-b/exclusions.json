@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "changeTicket": "CHG-DEV-API2-0001",
-    "owner": "api2-team",
-    "reason": "API2 supports a custom query argument that should not be allowed on API1",
+    "changeTicket": "CHG-DEV-DOMAIN-B-0001",
+    "owner": "domain-b-team",
+    "reason": "Domain B supports a custom query argument that should not be allowed on domain A",
     "expiresOn": "2026-12-31"
   },
   "exclusions": [

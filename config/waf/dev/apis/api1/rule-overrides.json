@@ -1,9 +1,0 @@
-{
-  "metadata": {
-    "changeTicket": "CHG-DEV-API1-0002",
-    "owner": "api1-team",
-    "reason": "No broad disable, only API1-specific exclusions",
-    "expiresOn": "2026-12-31"
-  },
-  "overrides": []
-}

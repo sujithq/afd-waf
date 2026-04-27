@@ -122,9 +122,9 @@ $apiPolicyConfig = Read-JsonFile $apiPolicyPath
 $apimApiPathsByName = Get-ApimApiPathsByName
 $basePackage = Get-ConfigPackage (Join-Path $configRoot "base")
 $environmentPackage = Get-ConfigPackage (Join-Path $configRoot $Environment)
-$apiProperties = @()
-if ($null -ne $apiPolicyConfig.apiPolicies) {
-  $apiProperties = @($apiPolicyConfig.apiPolicies.PSObject.Properties)
+$domainProperties = @()
+if ($null -ne $apiPolicyConfig.domainPolicies) {
+  $domainProperties = @($apiPolicyConfig.domainPolicies.PSObject.Properties)
 }
 
 $results = @()
@@ -143,16 +143,25 @@ if ($apiPolicyConfig.base.enabled -eq $true) {
   }
 }
 
-foreach ($api in $apiProperties) {
-  $apiPackage = Get-ConfigPackage (Join-Path $configRoot "$Environment/apis/$($api.Name)")
-  $packages = @($basePackage, $environmentPackage, $apiPackage)
-  $apiPathPattern = Get-ApiPathPattern ($apimApiPathsByName[$api.Value.apimApiName])
-  $disabledExclusions = @($apiPackage.DisabledBaseExclusions)
+foreach ($domain in $domainProperties) {
+  $domainPackage = Get-ConfigPackage (Join-Path $configRoot "$Environment/domains/$($domain.Name)")
+  $packages = @($basePackage, $environmentPackage, $domainPackage)
+  $domainApis = @($domain.Value.apis.PSObject.Properties | ForEach-Object {
+    [pscustomobject]@{
+      name = $_.Name
+      apimApiName = $_.Value.apimApiName
+      pathPattern = Get-ApiPathPattern ($apimApiPathsByName[$_.Value.apimApiName])
+    }
+  })
+  $disabledExclusions = @($domainPackage.DisabledBaseExclusions)
 
   $results += [pscustomobject]@{
-    policy = $api.Name
+    policy = $domain.Name
     environment = $Environment
-    pathPatterns = @($apiPathPattern)
+    hostName = $domain.Value.hostName
+    customDomainEnabled = $domain.Value.enabled -eq $true
+    apis = @($domainApis)
+    pathPatterns = @($domainApis | ForEach-Object { $_.pathPattern })
     configSources = @($packages | Where-Object { $_.Exists } | ForEach-Object { Resolve-Path -Relative $_.Path })
     inheritedBaseExclusions = @($basePackage.Exclusions).Count
     disabledBaseExclusions = @($disabledExclusions)
@@ -171,6 +180,16 @@ Write-Output ""
 
 foreach ($result in $results) {
   Write-Output "Policy: $($result.policy)"
+  if ($null -ne $result.hostName) {
+    Write-Output "Host name: $($result.hostName)"
+    Write-Output "Custom domain enabled: $($result.customDomainEnabled)"
+  }
+  if ($null -ne $result.apis -and @($result.apis).Count -gt 0) {
+    Write-Output "APIs:"
+    foreach ($api in @($result.apis)) {
+      Write-Output "  - $($api.name) -> $($api.apimApiName) ($($api.pathPattern))"
+    }
+  }
   Write-Output "Path patterns: $(@($result.pathPatterns) -join ', ')"
   Write-Output "Config sources: $(@($result.configSources) -join ', ')"
   Write-Output "Inherited base exclusions: $($result.inheritedBaseExclusions)"

@@ -20,7 +20,7 @@ variable "name_prefix" {
 
 variable "subscription_id" {
   type        = string
-  description = "Azure subscription ID used to construct API-specific WAF policy import IDs."
+  description = "Azure subscription ID used to construct domain-specific WAF policy import IDs."
 }
 
 variable "resource_group_name" {
