@@ -26,13 +26,16 @@ $BaseUrl = $BaseUrl.TrimEnd("/")
 $Path = $Path.Trim("/")
 $QueryString = $QueryString.TrimStart("?")
 $url = "$BaseUrl/$Path/Entities?$QueryString"
+$requestHeaders = @{
+  Accept = "application/json"
+}
 
 Write-Host "Calling $url"
 
 $statusCode = $null
 $headers = $null
 try {
-  $response = Invoke-WebRequest -Uri $url -Method GET -UseBasicParsing
+  $response = Invoke-WebRequest -Uri $url -Method GET -UseBasicParsing -Headers $requestHeaders
   $statusCode = [int]$response.StatusCode
   $headers = $response.Headers
 }

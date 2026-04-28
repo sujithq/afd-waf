@@ -9,7 +9,7 @@
       "required": ["matchVariable", "selectorMatchOperator", "selector", "ruleSet", "ruleGroup", "ruleId"],
       "additionalProperties": false,
       "properties": {
-        "matchVariable": { "type": "string", "enum": ["QueryStringArgNames"] },
+        "matchVariable": { "type": "string", "enum": ["QueryStringArgNames", "QueryStringArgValues"] },
         "selectorMatchOperator": { "type": "string", "enum": ["Equals"] },
         "selector": { "type": "string" },
         "ruleSet": { "type": "string" },
