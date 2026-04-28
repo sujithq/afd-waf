@@ -1005,10 +1005,10 @@ After successful dev deployment:
 
   When adding a new API or moving an API between domains, treat the workflows as ordered reconciliation steps: Infra Deploy creates the APIM API, AFD route, and empty domain WAF policy resource; Config Deploy applies the WAF rule package to that policy; Domain Deploy binds the route to the custom domain, associates the domain WAF policy, updates DNS if configured, and refreshes the managed certificate binding. Run the matching custom-domain smoke test after Domain Deploy.
 
-4. **Promote to Prevention mode**:
-   - Update `waf_mode = "Prevention"` in `infra/terraform-config/env/prod.tfvars`
-  - Run Config Deploy workflow for `prod`, review the saved plan, and approve the `apply` job
-   - The infra stack ignores `mode` changes (it is in `ignore_changes`), so only the WAF policy mode changes; no infrastructure re-provisioning needed
+4. **Switch WAF mode when needed**:
+  - Use `scripts/set-waf-mode.ps1` for an operational live toggle without Terraform redeployment, for example: `pwsh -File scripts/set-waf-mode.ps1 -Environment dev -Mode Prevention -SubscriptionId <SUBSCRIPTION_ID> -NamePrefix acafd -Scope Domains -DomainName domain-a`.
+  - Use `-Scope Base`, `-Scope Domains`, or `-Scope All` depending on which WAF policies should change.
+  - Update `infra/terraform-config/env/<environment>.tfvars` later only if you want Terraform desired state to retain the mode.
 
 5. **Review WAF evidence** using the KQL template to measure false-positive reduction
 

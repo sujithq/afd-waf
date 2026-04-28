@@ -2,6 +2,6 @@ AzureDiagnostics
 | where ResourceProvider == "MICROSOFT.CDN"
 | where Category == "FrontDoorWebApplicationFirewallLog"
 | extend requestUri = tostring(requestUri_s)
-| where requestUri has "$filter" or requestUri has "$orderby"
-| project TimeGenerated, action_s, ruleName_s, policyName_s, requestUri_s, clientIP_s
+| where requestUri contains "$filter" or requestUri contains "$orderby"
+| project TimeGenerated, action_s, ruleName_s, policy_s, requestUri_s, clientIP_s
 | order by TimeGenerated desc

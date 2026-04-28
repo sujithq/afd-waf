@@ -27,6 +27,7 @@
 - Infra Deploy ignores route custom-domain bindings so Domain Deploy can own DNS-dependent bindings without the next infrastructure apply removing live custom domains.
 - Infra Deploy and Config Deploy use saved Terraform plans with environment approval and exact `tfplan` reuse. Apply is skipped when a detailed-exitcode plan reports no changes.
 - Domain Deploy refreshes AFD managed-certificate settings because the control plane can show an approved custom domain while an edge node still presents the fallback certificate until the binding is refreshed.
+- Live WAF mode switches for demos or operational validation can use `scripts/set-waf-mode.ps1`, which calls Azure CLI directly. Update Terraform tfvars separately only when the live mode should become desired state.
 
 ## Promotion model
 1. Dev in Detection mode.

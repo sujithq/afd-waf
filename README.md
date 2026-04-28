@@ -134,6 +134,7 @@ Workflows can be chained for streamlined deployment:
 7. **Smoke test and evidence collection**:
    - Run `scripts/smoke-odata.ps1` against AFD hostname to generate test traffic
    - Export WAF evidence using KQL template in `scripts/export-waf-evidence.kql`
+   - Use [docs/waf-evidence-queries.md](docs/waf-evidence-queries.md) for rule-match, blocked-request, and tracking-reference correlation queries
    - Use findings to refine exclusions in next iteration
 
 ## Deployment Model
@@ -160,10 +161,11 @@ For enabled custom domains you need DNS control for each hostname. The staged de
 
 Previous deployment fixes are now part of the operating model:
 - Infra Deploy uses saved Terraform plans, environment approval, no-op apply skips, and exact `tfplan` reuse so infrastructure changes are reviewed before they are applied.
-- Config Deploy uses the same saved-plan approval model and only manages WAF rule content, mode, and exclusions.
+- Config Deploy uses the same saved-plan approval model and manages WAF rule content, exclusions, and desired-state mode from Terraform config.
 - Infra Deploy ignores WAF rule content and route custom-domain bindings that are owned by Config Deploy and Domain Deploy.
 - Domain Deploy refreshes AFD managed-certificate settings because AFD can report custom domains as approved while the edge still serves a fallback certificate until the TLS binding is redeployed.
 - Custom-domain smoke tests should run after Domain Deploy for every enabled domain/API group.
+- `scripts/set-waf-mode.ps1` can switch live WAF policy mode directly with Azure CLI for demos or operational validation without redeploying Terraform.
 
 Example domain activation block:
 
