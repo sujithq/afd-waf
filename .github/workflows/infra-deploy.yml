@@ -19,12 +19,12 @@ on:
         type: boolean
         default: false
       apply_terraform:
-        description: Apply Terraform after reviewing the plan
+        description: Apply Terraform after reviewing the saved plan
         required: false
         type: boolean
         default: false
       apply_confirmation:
-        description: Type apply-<environment> to confirm Terraform apply
+        description: Type apply-<environment> to allow the apply job to run
         required: false
         type: string
         default: ""
@@ -44,12 +44,12 @@ on:
         type: boolean
         default: false
       apply_terraform:
-        description: Apply Terraform after reviewing the plan
+        description: Apply Terraform after reviewing the saved plan
         required: false
         type: boolean
         default: false
       apply_confirmation:
-        description: Type apply-<environment> to confirm Terraform apply
+        description: Type apply-<environment> to allow the apply job to run
         required: false
         type: string
         default: ""
@@ -59,7 +59,7 @@ permissions:
   id-token: write
 
 jobs:
-  deploy:
+  plan:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
@@ -135,7 +135,7 @@ jobs:
             --template-file infra/bicep/main.bicep \
             --parameters @infra/bicep/env/${{ inputs.environment }}.parameters.json
 
-      - name: Deploy terraform
+      - name: Plan terraform
         if: inputs.iac == 'terraform'
         env:
           ARM_USE_OIDC: true
@@ -165,6 +165,7 @@ jobs:
           fi
           terraform plan -input=false -out=tfplan
           terraform show -no-color tfplan | tee terraform-plan.txt
+
           {
             echo "## Terraform infra plan (${{ inputs.environment }})"
             echo ""
@@ -173,23 +174,75 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "${{ inputs.apply_terraform }}" != "true" ]; then
-            echo "Terraform apply skipped. Review the plan, then rerun with apply_terraform=true and apply_confirmation=apply-${{ inputs.environment }}."
-            exit 0
-          fi
+      - name: Upload Terraform plan artifact
+        if: inputs.iac == 'terraform' && inputs.apply_terraform == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: infra-tfplan-${{ inputs.environment }}
+          path: |
+            infra/terraform/tfplan
+            infra/terraform/terraform-plan.txt
+          retention-days: 1
 
+  apply:
+    needs: plan
+    if: inputs.iac == 'terraform' && inputs.apply_terraform == true
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: 1.14.9
+
+      - name: Azure login
+        uses: Azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Download Terraform plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: infra-tfplan-${{ inputs.environment }}
+          path: infra/terraform
+
+      - name: Apply saved terraform plan
+        env:
+          ARM_USE_OIDC: true
+          ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_location: ${{ vars.TF_LOCATION }}
+          TF_VAR_environment: ${{ inputs.environment }}
+          TF_VAR_name_prefix: ${{ vars.TF_NAME_PREFIX }}
+          TF_VAR_waf_mode: Detection
+          TF_VAR_apim_publisher_email: ${{ vars.APIM_PUBLISHER_EMAIL }}
+          TF_VAR_apim_publisher_name: ${{ vars.APIM_PUBLISHER_NAME }}
+        run: |
           if [ "${{ inputs.apply_confirmation }}" != "apply-${{ inputs.environment }}" ]; then
             echo "Refusing to apply. Set apply_confirmation to apply-${{ inputs.environment }}."
             exit 1
           fi
 
+          cd infra/terraform
+          terraform init -upgrade=false \
+            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RG }}" \
+            -backend-config="storage_account_name=${{ vars.TF_BACKEND_SA }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="key=${{ inputs.environment }}-infra.tfstate"
           terraform apply -input=false tfplan
           echo "--- Infra outputs (pass to config-deploy) ---"
           terraform output -json | jq '{waf_policy_id: .waf_policy_id.value, waf_policy_name: .waf_policy_name.value, domain_waf_policy_ids: .domain_waf_policy_ids.value, domain_waf_policy_names: .domain_waf_policy_names.value}'
 
   config-deploy:
-    needs: deploy
-    if: inputs.run_config_deploy == true && (inputs.iac != 'terraform' || inputs.apply_terraform == true)
+    needs: [plan, apply]
+    if: always() && inputs.run_config_deploy == true && (inputs.iac != 'terraform' || needs.apply.result == 'success')
     uses: ./.github/workflows/config-deploy.yml
     with:
       environment: ${{ inputs.environment }}

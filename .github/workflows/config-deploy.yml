@@ -15,12 +15,12 @@ on:
         options: [terraform, bicep]
         default: terraform
       apply_terraform:
-        description: Apply Terraform after reviewing the plan
+        description: Apply Terraform after reviewing the saved plan
         required: false
         type: boolean
         default: false
       apply_confirmation:
-        description: Type apply-<environment> to confirm Terraform apply
+        description: Type apply-<environment> to allow the apply job to run
         required: false
         type: string
         default: ""
@@ -36,12 +36,12 @@ on:
         type: string
         default: terraform
       apply_terraform:
-        description: Apply Terraform after reviewing the plan
+        description: Apply Terraform after reviewing the saved plan
         required: false
         type: boolean
         default: false
       apply_confirmation:
-        description: Type apply-<environment> to confirm Terraform apply
+        description: Type apply-<environment> to allow the apply job to run
         required: false
         type: string
         default: ""
@@ -51,7 +51,7 @@ permissions:
   id-token: write
 
 jobs:
-  deploy:
+  plan:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
@@ -113,7 +113,7 @@ jobs:
             -MaxAttempts 30 `
             -DelaySeconds 10
 
-      - name: Deploy WAF config via Terraform
+      - name: Plan WAF config via Terraform
         if: inputs.iac != 'bicep'
         env:
           ARM_USE_OIDC: true
@@ -135,6 +135,7 @@ jobs:
             -var-file="env/${{ inputs.environment }}.tfvars" \
             -out=tfplan
           terraform show -no-color tfplan | tee terraform-plan.txt
+
           {
             echo "## Terraform config plan (${{ inputs.environment }})"
             echo ""
@@ -143,17 +144,15 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "${{ inputs.apply_terraform }}" != "true" ]; then
-            echo "Terraform apply skipped. Review the plan, then rerun with apply_terraform=true and apply_confirmation=apply-${{ inputs.environment }}."
-            exit 0
-          fi
-
-          if [ "${{ inputs.apply_confirmation }}" != "apply-${{ inputs.environment }}" ]; then
-            echo "Refusing to apply. Set apply_confirmation to apply-${{ inputs.environment }}."
-            exit 1
-          fi
-
-          terraform apply -input=false tfplan
+      - name: Upload Terraform plan artifact
+        if: inputs.iac != 'bicep' && inputs.apply_terraform == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-tfplan-${{ inputs.environment }}
+          path: |
+            infra/terraform-config/tfplan
+            infra/terraform-config/terraform-plan.txt
+          retention-days: 1
 
       - name: Deploy WAF config via Bicep
         if: inputs.iac == 'bicep'
@@ -227,3 +226,54 @@ jobs:
             --parameters @infra/bicep-config/env/${{ inputs.environment }}.parameters.json \
             --parameters wafPolicyName="$WAF_NAME" \
             --parameters "ruleGroupOverrides=$RULE_GROUP_OVERRIDES"
+
+  apply:
+    needs: plan
+    if: inputs.iac != 'bicep' && inputs.apply_terraform == true
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: 1.14.9
+
+      - name: Azure login
+        uses: Azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Download Terraform plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: config-tfplan-${{ inputs.environment }}
+          path: infra/terraform-config
+
+      - name: Apply saved WAF config plan
+        env:
+          ARM_USE_OIDC: true
+          ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_environment: ${{ inputs.environment }}
+          TF_VAR_name_prefix: ${{ vars.TF_NAME_PREFIX }}
+          TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          if [ "${{ inputs.apply_confirmation }}" != "apply-${{ inputs.environment }}" ]; then
+            echo "Refusing to apply. Set apply_confirmation to apply-${{ inputs.environment }}."
+            exit 1
+          fi
+
+          cd infra/terraform-config
+          terraform init -upgrade=false \
+            -backend-config="resource_group_name=${{ vars.TF_BACKEND_RG }}" \
+            -backend-config="storage_account_name=${{ vars.TF_BACKEND_SA }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="key=${{ inputs.environment }}-config.tfstate"
+          terraform apply -input=false tfplan
