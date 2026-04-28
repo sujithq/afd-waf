@@ -55,7 +55,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
+      tf_apply_requested: ${{ steps.plan_terraform.outputs.apply_requested }}
       tf_has_changes: ${{ steps.plan_terraform.outputs.has_changes }}
+      tf_should_apply: ${{ steps.plan_terraform.outputs.should_apply }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -151,10 +153,31 @@ jobs:
             exit 1
           fi
 
+          APPLY_REQUESTED="false"
+          if [ "${{ inputs.apply_terraform }}" = "true" ]; then
+            APPLY_REQUESTED="true"
+          fi
+
+          HAS_CHANGES="false"
           if [ "$PLAN_EXIT_CODE" -eq 2 ]; then
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            HAS_CHANGES="true"
+          fi
+
+          SHOULD_APPLY="false"
+          if [ "$APPLY_REQUESTED" = "true" ] && [ "$HAS_CHANGES" = "true" ]; then
+            SHOULD_APPLY="true"
+          fi
+
+          {
+            echo "apply_requested=$APPLY_REQUESTED"
+            echo "has_changes=$HAS_CHANGES"
+            echo "should_apply=$SHOULD_APPLY"
+          } >> "$GITHUB_OUTPUT"
+
+          if [ "$HAS_CHANGES" = "true" ]; then
+            echo "Terraform changes detected."
           else
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No Terraform changes detected."
           fi
 
           terraform show -no-color tfplan | tee terraform-plan.txt
@@ -163,13 +186,14 @@ jobs:
           {
             echo "## Terraform config plan (${{ inputs.environment }})"
             echo ""
-            echo "Apply requested: \`${{ inputs.apply_terraform }}\`"
-            echo "Terraform changes detected: \`$([ "$PLAN_EXIT_CODE" -eq 2 ] && echo true || echo false)\`"
+            echo "Apply requested: \`$APPLY_REQUESTED\`"
+            echo "Terraform changes detected: \`$HAS_CHANGES\`"
+            echo "Should apply saved plan: \`$SHOULD_APPLY\`"
             echo ""
-            if [ "$PLAN_EXIT_CODE" -eq 0 ]; then
+            if [ "$HAS_CHANGES" = "false" ]; then
               echo "No Terraform changes detected. Approval and apply jobs will be skipped."
               echo ""
-            elif [ "${{ inputs.apply_terraform }}" = "true" ]; then
+            elif [ "$SHOULD_APPLY" = "true" ]; then
               echo "Terraform changes detected. The approve job will wait for the ${{ inputs.environment }} environment review before apply can start."
               echo ""
             else
@@ -182,7 +206,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Terraform plan artifact
-        if: inputs.iac != 'bicep' && inputs.apply_terraform == true && steps.plan_terraform.outputs.has_changes == 'true'
+        if: inputs.iac != 'bicep' && steps.plan_terraform.outputs.should_apply == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: config-tfplan-${{ inputs.environment }}
@@ -267,7 +291,7 @@ jobs:
 
   no_changes:
     needs: plan
-    if: inputs.iac != 'bicep' && inputs.apply_terraform == true && needs.plan.outputs.tf_has_changes != 'true'
+    if: inputs.iac != 'bicep' && needs.plan.outputs.tf_apply_requested == 'true' && needs.plan.outputs.tf_has_changes != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Explain skipped apply
@@ -281,7 +305,7 @@ jobs:
 
   approve:
     needs: plan
-    if: inputs.iac != 'bicep' && inputs.apply_terraform == true && needs.plan.outputs.tf_has_changes == 'true'
+    if: inputs.iac != 'bicep' && needs.plan.outputs.tf_should_apply == 'true'
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
@@ -292,7 +316,7 @@ jobs:
 
   apply:
     needs: [plan, approve]
-    if: inputs.iac != 'bicep' && inputs.apply_terraform == true && needs.plan.outputs.tf_has_changes == 'true'
+    if: inputs.iac != 'bicep' && needs.plan.outputs.tf_should_apply == 'true'
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
