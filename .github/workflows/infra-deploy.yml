@@ -64,6 +64,7 @@ jobs:
     environment: ${{ inputs.environment }}
     outputs:
       tf_apply_requested: ${{ steps.plan_outputs.outputs.apply_requested }}
+      tf_change_count: ${{ steps.plan_outputs.outputs.change_count }}
       tf_has_changes: ${{ steps.plan_outputs.outputs.has_changes }}
       tf_should_apply: ${{ steps.plan_outputs.outputs.should_apply }}
     steps:
@@ -183,8 +184,10 @@ jobs:
             APPLY_REQUESTED="true"
           fi
 
+          CHANGE_COUNT=$(terraform show -json tfplan | jq '[.resource_changes[]? | select((.change.actions // []) | any(. != "no-op" and . != "read"))] | length')
+
           HAS_CHANGES="false"
-          if [ "$PLAN_EXIT_CODE" -eq 2 ]; then
+          if [ "$CHANGE_COUNT" -gt 0 ]; then
             HAS_CHANGES="true"
           fi
 
@@ -194,6 +197,7 @@ jobs:
           fi
 
           echo "$APPLY_REQUESTED" > apply-requested.txt
+          echo "$CHANGE_COUNT" > change-count.txt
           echo "$HAS_CHANGES" > has-changes.txt
           echo "$SHOULD_APPLY" > should-apply.txt
 
@@ -210,6 +214,7 @@ jobs:
             echo "## Terraform infra plan (${{ inputs.environment }})"
             echo ""
             echo "Apply requested: \`$APPLY_REQUESTED\`"
+            echo "Plan resource change count: \`$CHANGE_COUNT\`"
             echo "Terraform changes detected: \`$HAS_CHANGES\`"
             echo "Should apply saved plan: \`$SHOULD_APPLY\`"
             echo ""
@@ -234,15 +239,17 @@ jobs:
         run: |
           cd infra/terraform
           APPLY_REQUESTED=$(cat apply-requested.txt)
+          CHANGE_COUNT=$(cat change-count.txt)
           HAS_CHANGES=$(cat has-changes.txt)
           SHOULD_APPLY=$(cat should-apply.txt)
           {
             echo "apply_requested=$APPLY_REQUESTED"
+            echo "change_count=$CHANGE_COUNT"
             echo "has_changes=$HAS_CHANGES"
             echo "should_apply=$SHOULD_APPLY"
           } >> "$GITHUB_OUTPUT"
 
-          echo "Plan decision: apply_requested=$APPLY_REQUESTED, has_changes=$HAS_CHANGES, should_apply=$SHOULD_APPLY"
+          echo "Plan decision: apply_requested=$APPLY_REQUESTED, change_count=$CHANGE_COUNT, has_changes=$HAS_CHANGES, should_apply=$SHOULD_APPLY"
 
       - name: Upload Terraform plan artifact
         if: inputs.iac == 'terraform' && steps.plan_outputs.outputs.should_apply == 'true'
