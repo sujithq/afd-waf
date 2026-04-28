@@ -138,7 +138,7 @@ Workflows can be chained for streamlined deployment:
 
 ## Deployment Model
 
-This repository uses a **two-stack IaC model** with separate Terraform configurations and isolated blast radius:
+This repository uses a **three-surface deployment model** with separate ownership and isolated blast radius:
 
 | Responsibility | Terraform stack | Workflow |
 |---|---|---|
@@ -148,12 +148,22 @@ This repository uses a **two-stack IaC model** with separate Terraform configura
 
 - **Infra stack** (`infra/terraform/`): Provisions all stable Azure resources. The base WAF policy is associated to the AFD endpoint default domain with `/*`, which is the path pattern supported by AFD security policy associations. Domain-policy WAF resources are always rendered, but DNS-dependent AFD custom domains, route custom-domain bindings, and domain WAF associations are handled by the separate Domain Deploy workflow. WAF policies are created bare (no rules). `lifecycle { ignore_changes = [managed_rule, custom_rule, mode, enabled] }` ensures that config-stack rule and mode changes are never reverted by an infra apply.
 - **Config stack** (`infra/terraform-config/`): Imports the WAF policies by ID and applies `managed_rule` blocks built from JSON. `config/waf/api-policies.json` declares domain policies, hostnames, and APIM APIs grouped under each domain. AFD does not support path-scoped WAF policy associations on one endpoint default domain, so domain policies become active only when their custom domain is enabled and associated with `/*`.
+- **Domain Deploy** (`scripts/deploy-afd-domains.ps1`): Creates or updates Azure DNS zones and records, AFD custom domains, route custom-domain bindings, and domain WAF security-policy associations. It preserves any existing custom-domain bindings on a route, refreshes managed-certificate settings on each run, and checks that the intended custom domain is present after each route update.
 - **Bicep config stack** (`infra/bicep-config/`): Applies the same WAF rule-group overrides from JSON when Config Deploy runs with `iac=bicep`.
 - **WAF config JSON**: `config/waf/base/` contains shared OData exclusions such as `$select`, `$expand`, `$filter`, and `$orderby`. `config/waf/{env}/` can append environment-level tuning. `config/waf/{env}/domains/{domain}/` appends domain-only tuning, such as the current `domain-a` `$search` and `domain-b` `$customVar` examples, without changing other domains.
+
+Keep the deployment order explicit when adding or moving APIs: run Infra Deploy first so routes, APIM APIs, and WAF policy resources exist; run Config Deploy next so the WAF policies contain the expected managed-rule configuration; run Domain Deploy last so DNS, custom domains, route bindings, and domain WAF associations are reconciled against the finished infrastructure. Infra Deploy intentionally ignores route `cdn_frontdoor_custom_domain_ids` so it does not remove live custom-domain bindings owned by Domain Deploy.
 
 To add another domain policy package, add it to `config/waf/api-policies.json` with a hostname and APIM API bindings, then optionally add `config/waf/{env}/domains/{domain}/exclusions.json` and `rule-overrides.json` for domain-specific tuning. Domain keys must be lowercase letters, numbers, or hyphens, and every APIM API name must exist in Terraform. Domain packages inherit `config/waf/base/`; use `disabledBaseExclusions` in the domain-specific `exclusions.json` when previewing a domain opt-out from one inherited base exclusion, such as domain A disallowing `$top` while domain B still allows it. To activate the domain policy, replace the placeholder hostname with a real FQDN that you own, configure the `dns` object, set `enabled: true`, run Infra Deploy and Config Deploy, then run Domain Deploy.
 
 For enabled custom domains you need DNS control for each hostname. The staged demo names are `api-a.wafdemo.squintelier.net` and `api-b.wafdemo.squintelier.net` under the delegated Azure DNS zone `wafdemo.squintelier.net`. Set `dns.zoneName` to the Azure DNS zone, set `dns.createZone: true` if the workflow should create it, and set `dns.manageRecords: true` if the workflow should create the CNAME and validation TXT records. If the workflow creates a new Azure DNS zone, you still must delegate that zone at the registrar or parent DNS zone by using the Azure DNS name servers. Apex/root domains need an alias-capable DNS provider rather than a normal CNAME.
+
+Previous deployment fixes are now part of the operating model:
+- Infra Deploy uses saved Terraform plans, environment approval, no-op apply skips, and exact `tfplan` reuse so infrastructure changes are reviewed before they are applied.
+- Config Deploy uses the same saved-plan approval model and only manages WAF rule content, mode, and exclusions.
+- Infra Deploy ignores WAF rule content and route custom-domain bindings that are owned by Config Deploy and Domain Deploy.
+- Domain Deploy refreshes AFD managed-certificate settings because AFD can report custom domains as approved while the edge still serves a fallback certificate until the TLS binding is redeployed.
+- Custom-domain smoke tests should run after Domain Deploy for every enabled domain/API group.
 
 Example domain activation block:
 

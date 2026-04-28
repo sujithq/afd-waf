@@ -129,6 +129,22 @@ function Test-TxtRecordValueExists([string]$ResourceGroupName, [string]$ZoneName
   return $values -contains $Value
 }
 
+function Get-ResourceNameFromId([string]$ResourceId) {
+  if ([string]::IsNullOrWhiteSpace($ResourceId)) {
+    return $null
+  }
+
+  return ($ResourceId -split "/")[-1]
+}
+
+function Get-RouteCustomDomainNames($Route) {
+  return @(
+    $Route.customDomains |
+      ForEach-Object { Get-ResourceNameFromId ([string]$_.id) } |
+      Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+  )
+}
+
 $resolvedConfigPath = Resolve-Path $ConfigPath
 $config = Get-Content $resolvedConfigPath -Raw | ConvertFrom-Json
 $domainPolicies = @($config.domainPolicies.PSObject.Properties | Where-Object { $_.Value.enabled -eq $true })
@@ -241,6 +257,17 @@ foreach ($domainPolicy in $domainPolicies) {
     Write-Host "Custom domain '$customDomainName' already exists."
   }
 
+  Write-Host "Refreshing managed certificate settings for custom domain '$customDomainName'."
+  Invoke-AzCli -Arguments @(
+    "afd", "custom-domain", "update",
+    "--resource-group", $ResourceGroupName,
+    "--profile-name", $profileName,
+    "--custom-domain-name", $customDomainName,
+    "--certificate-type", "ManagedCertificate",
+    "--minimum-tls-version", "TLS12",
+    "--only-show-errors"
+  ) | Out-Null
+
   $customDomain = Get-AzCliJson -Arguments @(
     "afd", "custom-domain", "show",
     "--resource-group", $ResourceGroupName,
@@ -293,16 +320,52 @@ foreach ($domainPolicy in $domainPolicies) {
 
   foreach ($api in @($domain.apis.PSObject.Properties)) {
     $routeName = "$($api.Name)-route"
+    $route = Get-AzCliJson -Arguments @(
+      "afd", "route", "show",
+      "--resource-group", $ResourceGroupName,
+      "--profile-name", $profileName,
+      "--endpoint-name", $endpointName,
+      "--route-name", $routeName,
+      "--only-show-errors"
+    )
+
+    $routeCustomDomainNames = @(Get-RouteCustomDomainNames $route)
+    $updatedCustomDomainNames = @($routeCustomDomainNames + $customDomainName | Sort-Object -Unique)
+
     Write-Host "Binding route '$routeName' to custom domain '$customDomainName'."
-    Invoke-AzCli -Arguments @(
+    $routeUpdateArgs = @(
       "afd", "route", "update",
       "--resource-group", $ResourceGroupName,
       "--profile-name", $profileName,
       "--endpoint-name", $endpointName,
       "--route-name", $routeName,
-      "--custom-domains", $customDomainName,
+      "--custom-domains"
+    ) + $updatedCustomDomainNames + @(
       "--only-show-errors"
-    ) | Out-Null
+    )
+
+    Invoke-AzCli -Arguments $routeUpdateArgs | Out-Null
+
+    if (-not $WhatIf) {
+      $updatedRoute = Get-AzCliJson -Arguments @(
+        "afd", "route", "show",
+        "--resource-group", $ResourceGroupName,
+        "--profile-name", $profileName,
+        "--endpoint-name", $endpointName,
+        "--route-name", $routeName,
+        "--only-show-errors"
+      )
+      $updatedRouteCustomDomainNames = @(Get-RouteCustomDomainNames $updatedRoute)
+
+      if ($updatedRouteCustomDomainNames -notcontains $customDomainName) {
+        throw "Route '$routeName' was updated but custom domain '$customDomainName' is not present in the route bindings."
+      }
+
+      $customDomainBinding = @($updatedRoute.customDomains | Where-Object { [string]$_.id -eq [string]$customDomainId }) | Select-Object -First 1
+      if ($null -ne $customDomainBinding -and $customDomainBinding.isActive -ne $true) {
+        Write-Warning "Route '$routeName' contains custom domain '$customDomainName', but the binding is not active yet. Allow Front Door propagation before smoke testing."
+      }
+    }
   }
 
   $wafPolicyId = Invoke-AzCli -Arguments @(

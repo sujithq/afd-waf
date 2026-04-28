@@ -983,6 +983,14 @@ cat scripts/export-waf-evidence.kql
 - **Solution**: Wait ~10 minutes for DNS propagation
 - Check AFD status in Azure Portal
 
+**Issue**: Custom domain returns 404 or the certificate name does not match
+- **Cause**: The custom domain resource, DNS record, route binding, or edge certificate deployment may be stale even when Azure reports the custom domain as approved. AFD route rules can also be healthy on the default endpoint while the direct custom-domain SNI path is not yet updated.
+- **Solution**:
+  - Re-run the **Domain Deploy** workflow for the same environment. The script refreshes the managed-certificate settings, preserves existing route custom-domain bindings, and verifies each intended route binding after update.
+  - Check the custom domain state: `az afd custom-domain show --resource-group <RG> --profile-name <AFD_PROFILE> --custom-domain-name <CUSTOM_DOMAIN_NAME> -o table`.
+  - Check route bindings: `az afd route show --resource-group <RG> --profile-name <AFD_PROFILE> --endpoint-name <ENDPOINT_NAME> --route-name <API_ROUTE_NAME> --query "customDomains" -o table`.
+  - Smoke test the direct custom domain after propagation: `pwsh -File scripts/smoke-odata.ps1 -BaseUrl https://<CUSTOM_DOMAIN> -Paths <path1>,<path2>`.
+
 ---
 
 ## Next Steps
@@ -995,6 +1003,8 @@ After successful dev deployment:
 
 3. **Update WAF config** for future changes. Add common OData query arguments to `config/waf/base/`. Add environment-wide tuning to `config/waf/{env}/`. Add domain-only tuning to `config/waf/{env}/domains/{domain}/`. For a new isolated domain policy, first add the domain key, hostname, DNS settings, and APIM API bindings to `config/waf/api-policies.json`; Terraform derives the AFD route paths from the APIM API paths. Keep `enabled: false` until DNS is ready. The staged demo hostnames are `api-a.wafdemo.squintelier.net` and `api-b.wafdemo.squintelier.net` under the Azure DNS zone `wafdemo.squintelier.net`. To activate a domain, use a real FQDN that you own, set `dns.zoneName`, set `dns.createZone: true` if Domain Deploy should create the Azure DNS zone, set `dns.manageRecords: true` if Domain Deploy should create DNS records, set `enabled: true`, run Infra Deploy and Config Deploy, then run the **Domain Deploy** workflow. If a new Azure DNS zone is created, delegate it at the registrar or parent DNS zone with the Azure DNS name servers. Use `disabledBaseExclusions` in the domain-specific `exclusions.json` when a domain must opt out of one inherited base exclusion. Run `scripts/show-effective-waf-config.ps1 -Environment dev` to preview the merged policy before deployment. Push changes so Config Validate checks schema and guardrails on PR, then merge to `main` and run Config Deploy manually for the target environment. Domain-only additions do not change other domains.
 
+  When adding a new API or moving an API between domains, treat the workflows as ordered reconciliation steps: Infra Deploy creates the APIM API, AFD route, and empty domain WAF policy resource; Config Deploy applies the WAF rule package to that policy; Domain Deploy binds the route to the custom domain, associates the domain WAF policy, updates DNS if configured, and refreshes the managed certificate binding. Run the matching custom-domain smoke test after Domain Deploy.
+
 4. **Promote to Prevention mode**:
    - Update `waf_mode = "Prevention"` in `infra/terraform-config/env/prod.tfvars`
   - Run Config Deploy workflow for `prod`, review the saved plan, and approve the `apply` job
@@ -1002,11 +1012,12 @@ After successful dev deployment:
 
 5. **Review WAF evidence** using the KQL template to measure false-positive reduction
 
-**Two-workflow model summary:**
+**Deployment workflow summary:**
 | Step | Workflow | When to run |
 |---|---|---|
 | Provision/update infrastructure | **Infra Deploy** (`iac=terraform`) | Infrastructure code changes |
 | Apply/update WAF rules | **Config Deploy** | WAF JSON config changes |
+| Reconcile custom domains and bindings | **Domain Deploy** | New or changed domain/API mappings, DNS settings, or custom-domain certificate/routing repair |
 
 **Emergency fallback (script):**
 `scripts/deploy-config.ps1` is available for out-of-band emergency fixes. Use the `-Force` flag to skip the interactive confirmation gate. Always re-run Config Deploy afterwards to bring Terraform state back in sync.
