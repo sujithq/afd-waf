@@ -520,6 +520,7 @@ If you didn't enable automatic config deployment, or want to update WAF configur
 Terraform approval model:
 - A normal plan-only run does not apply and does not reuse a plan in a later workflow run.
 - A saved-plan apply run creates `tfplan` in the `plan` job, uploads it as a short-lived artifact, pauses in the `approve` job, and then the `apply` job downloads and applies that same artifact.
+- If the Terraform plan has no changes, the workflow writes that to the job summary and skips artifact upload, approval, and apply.
 - The apply job refuses saved plans older than 60 minutes, so rerun the workflow if approval is delayed.
 - Configure required reviewers on the existing `dev`, `test`, and `prod` GitHub environments when you want the explicit approval gate to pause before apply. Because those same environments are also used for Azure OIDC, a protected environment can also pause jobs that need to sign in to Azure.
 - Terraform rejects stale plans when state changes, but out-of-band Azure drift that is not reflected in state is not re-checked by an already saved plan.

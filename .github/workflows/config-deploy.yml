@@ -54,6 +54,8 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    outputs:
+      tf_has_changes: ${{ steps.plan_terraform.outputs.has_changes }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -114,6 +116,7 @@ jobs:
             -DelaySeconds 10
 
       - name: Plan WAF config via Terraform
+        id: plan_terraform
         if: inputs.iac != 'bicep'
         env:
           ARM_USE_OIDC: true
@@ -131,22 +134,41 @@ jobs:
             -backend-config="container_name=tfstate" \
             -backend-config="use_azuread_auth=true" \
             -backend-config="key=${{ inputs.environment }}-config.tfstate"
-          terraform plan -input=false \
+          set +e
+          terraform plan -input=false -detailed-exitcode \
             -var-file="env/${{ inputs.environment }}.tfvars" \
             -out=tfplan
+          PLAN_EXIT_CODE=$?
+          set -e
+
+          if [ "$PLAN_EXIT_CODE" -eq 1 ]; then
+            echo "Terraform plan failed."
+            exit 1
+          fi
+
+          if [ "$PLAN_EXIT_CODE" -eq 2 ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
           terraform show -no-color tfplan | tee terraform-plan.txt
           date -u +%s > plan-created-at.txt
 
           {
             echo "## Terraform config plan (${{ inputs.environment }})"
             echo ""
+            if [ "$PLAN_EXIT_CODE" -eq 0 ]; then
+              echo "No Terraform changes detected. Approval and apply jobs will be skipped."
+              echo ""
+            fi
             echo '```terraform'
             cat terraform-plan.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Terraform plan artifact
-        if: inputs.iac != 'bicep' && inputs.apply_terraform == true
+        if: inputs.iac != 'bicep' && inputs.apply_terraform == true && steps.plan_terraform.outputs.has_changes == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: config-tfplan-${{ inputs.environment }}
@@ -231,7 +253,7 @@ jobs:
 
   approve:
     needs: plan
-    if: inputs.iac != 'bicep' && inputs.apply_terraform == true
+    if: inputs.iac != 'bicep' && inputs.apply_terraform == true && needs.plan.outputs.tf_has_changes == 'true'
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
@@ -241,8 +263,8 @@ jobs:
           echo "The apply job will download and apply the saved tfplan artifact from this workflow run."
 
   apply:
-    needs: approve
-    if: inputs.iac != 'bicep' && inputs.apply_terraform == true
+    needs: [plan, approve]
+    if: inputs.iac != 'bicep' && inputs.apply_terraform == true && needs.plan.outputs.tf_has_changes == 'true'
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:

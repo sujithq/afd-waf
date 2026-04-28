@@ -68,6 +68,7 @@ Workflows can be chained for streamlined deployment:
    - Select environment and `iac=terraform` for the tested path
    - For a review-only plan, leave `apply_terraform=false`; `apply_confirmation` is ignored in that mode
    - To apply the exact saved plan from the same workflow run, set `apply_terraform=true` and `apply_confirmation=apply-<environment>`, then approve the `approve` job after reviewing the plan summary
+   - If the Terraform plan has no changes, approval and apply are skipped
    - The apply job refuses saved plans older than 60 minutes; rerun the workflow if approval is delayed
    - Enable `run_config_deploy` only when you also want a follow-up Config Deploy plan after the infra apply succeeds
 
@@ -77,6 +78,7 @@ Workflows can be chained for streamlined deployment:
    - Select `iac=terraform` for the tested path
    - For a review-only plan, leave `apply_terraform=false`; `apply_confirmation` is ignored in that mode
    - Use the saved-plan approval flow only when you are ready to apply: set `apply_terraform=true` and `apply_confirmation=apply-<environment>` so the apply job can use the uploaded `tfplan` artifact
+   - If the Terraform plan has no changes, approval and apply are skipped
    - The apply job refuses saved plans older than 60 minutes; rerun the workflow if approval is delayed
 
 #### Option 2: Local Development with Manual Steps
