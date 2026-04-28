@@ -493,12 +493,17 @@ After the bootstrap workflow completes, you **must manually** add these GitHub r
 
 1. Go to **Actions → Infra Deploy**
 2. Click **Run workflow**
-3. Select **environment**: `dev`, **iac**: `terraform`, and **run_config_deploy**: `true` to automatically run config deployment afterwards.
-4. Click **Run workflow**
+3. Select **environment**: `dev` and **iac**: `terraform`.
+4. For a review-only plan, leave **apply_terraform** as `false`.
+5. To apply the exact saved plan from the same workflow run, set **apply_terraform** to `true` and **apply_confirmation** to `apply-dev`, then review the plan summary before approving the `apply` job.
+6. Set **run_config_deploy** to `true` only when you want a follow-up Config Deploy plan after the infra apply succeeds.
+7. Click **Run workflow**
 
 This will:
-- Create the Azure infrastructure (AFD, WAF policy, APIM)
-- If `run_config_deploy` is true, automatically run the Config Deploy workflow afterwards
+- Always create a Terraform plan and publish it to the job summary
+- Upload the binary `tfplan` artifact only when `apply_terraform=true`
+- Apply the saved plan in a separate `apply` job after confirmation and environment approval
+- If `run_config_deploy` is true, automatically run a follow-up Config Deploy plan after a successful Terraform infra apply
 
 #### 4. (Optional) Run Config Deploy Separately
 
@@ -508,14 +513,22 @@ If you didn't enable automatic config deployment, or want to update WAF configur
 2. Click **Run workflow**
 3. Select **environment**: `dev`
 4. Select **iac**: `terraform`
-5. Click **Run workflow**
+5. For a review-only plan, leave **apply_terraform** as `false`.
+6. To apply the exact saved config plan from the same workflow run, set **apply_terraform** to `true` and **apply_confirmation** to `apply-dev`, then approve the `apply` job after reviewing the plan summary.
+7. Click **Run workflow**
+
+Terraform approval model:
+- A normal plan-only run does not apply and does not reuse a plan in a later workflow run.
+- A saved-plan apply run creates `tfplan` in the `plan` job, uploads it as a short-lived artifact, and the `apply` job downloads and applies that same artifact.
+- Configure required reviewers on the GitHub environment if you want the `apply` job to pause for human approval. If the same environment also protects the `plan` job, approve the plan job first, then review the summary before approving apply.
+- If a long time passes before approval, rerun the workflow for a fresh plan. Terraform rejects stale plans when state changes, but out-of-band Azure drift that is not reflected in state is not re-checked by an already saved plan.
 
 ### Workflow Chaining
 
 The workflows can be chained together:
 
 - **Infra Deploy** can automatically trigger **Config Deploy** if you enable the `run_config_deploy` option
-- This ensures your WAF configuration is applied immediately after infrastructure deployment
+- For Terraform, chained Config Deploy runs as a follow-up plan. Apply Config Deploy separately with `apply_terraform=true` and the matching confirmation when you are ready to approve the saved config plan.
 
 **Understanding Data Flow Between Workflows:**
 
@@ -976,13 +989,13 @@ After successful dev deployment:
 
 1. **Deploy to test and prod** using the same Infra Deploy workflow (select different environments)
 
-2. **Run Config Deploy** after every Infra Deploy to apply WAF managed rules. Trigger the **Config Deploy** workflow manually for the same environment and select `iac=terraform`. Terraform imports the base WAF policy plus any domain-specific WAF policies declared in `config/waf/api-policies.json`, applies shared OData exclusions from `config/waf/base/`, applies environment additions from `config/waf/{env}/`, and applies domain-only additions from `config/waf/{env}/domains/{domain}/` when those folders exist.
+2. **Run Config Deploy** after every Infra Deploy to apply WAF managed rules. Trigger the **Config Deploy** workflow manually for the same environment, select `iac=terraform`, set `apply_terraform=true`, and type the matching confirmation such as `apply-dev` only when the saved config plan is ready for approval. Terraform imports the base WAF policy plus any domain-specific WAF policies declared in `config/waf/api-policies.json`, applies shared OData exclusions from `config/waf/base/`, applies environment additions from `config/waf/{env}/`, and applies domain-only additions from `config/waf/{env}/domains/{domain}/` when those folders exist.
 
 3. **Update WAF config** for future changes. Add common OData query arguments to `config/waf/base/`. Add environment-wide tuning to `config/waf/{env}/`. Add domain-only tuning to `config/waf/{env}/domains/{domain}/`. For a new isolated domain policy, first add the domain key, hostname, DNS settings, and APIM API bindings to `config/waf/api-policies.json`; Terraform derives the AFD route paths from the APIM API paths. Keep `enabled: false` until DNS is ready. The staged demo hostnames are `api-a.wafdemo.squintelier.net` and `api-b.wafdemo.squintelier.net` under the Azure DNS zone `wafdemo.squintelier.net`. To activate a domain, use a real FQDN that you own, set `dns.zoneName`, set `dns.createZone: true` if Domain Deploy should create the Azure DNS zone, set `dns.manageRecords: true` if Domain Deploy should create DNS records, set `enabled: true`, run Infra Deploy and Config Deploy, then run the **Domain Deploy** workflow. If a new Azure DNS zone is created, delegate it at the registrar or parent DNS zone with the Azure DNS name servers. Use `disabledBaseExclusions` in the domain-specific `exclusions.json` when a domain must opt out of one inherited base exclusion. Run `scripts/show-effective-waf-config.ps1 -Environment dev` to preview the merged policy before deployment. Push changes so Config Validate checks schema and guardrails on PR, then merge to `main` and run Config Deploy manually for the target environment. Domain-only additions do not change other domains.
 
 4. **Promote to Prevention mode**:
    - Update `waf_mode = "Prevention"` in `infra/terraform-config/env/prod.tfvars`
-   - Run Config Deploy workflow for `prod`
+  - Run Config Deploy workflow for `prod`, review the saved plan, and approve the `apply` job
    - The infra stack ignores `mode` changes (it is in `ignore_changes`), so only the WAF policy mode changes; no infrastructure re-provisioning needed
 
 5. **Review WAF evidence** using the KQL template to measure false-positive reduction

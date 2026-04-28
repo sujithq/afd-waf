@@ -66,12 +66,15 @@ Workflows can be chained for streamlined deployment:
 3. **Run Infra Deploy workflow**:
    - Go to **Actions → Infra Deploy**
    - Select environment and `iac=terraform` for the tested path
-   - Enable `run_config_deploy` to automatically run config deployment afterwards
+   - For a review-only plan, leave `apply_terraform=false`
+   - To apply the exact saved plan from the same workflow run, set `apply_terraform=true` and `apply_confirmation=apply-<environment>`, then approve the `apply` job after reviewing the plan summary
+   - Enable `run_config_deploy` only when you also want a follow-up Config Deploy plan after the infra apply succeeds
 
 4. **Run Config Deploy workflow** (if not chained):
    - Go to **Actions → Config Deploy**
    - Select environment
    - Select `iac=terraform` for the tested path
+   - Use the same saved-plan approval flow: set `apply_terraform=true` and `apply_confirmation=apply-<environment>` only when you are ready for the apply job to use the uploaded `tfplan` artifact
 
 #### Option 2: Local Development with Manual Steps
 
@@ -100,6 +103,8 @@ Workflows can be chained for streamlined deployment:
 
 4. **Deploy infrastructure** (manual trigger — first time or on infra changes):
    - Run **Infra Deploy** workflow targeting the environment with `iac=terraform`
+   - Leave `apply_terraform=false` for a plan-only review, or set `apply_terraform=true` plus `apply_confirmation=apply-<environment>` for a saved-plan apply run
+   - Review the Terraform plan in the job summary before approving the `apply` job
    - Workflow uses OIDC to authenticate (no secrets in logs)
    - Creates/updates resource group, WAF policy (bare), APIM, and AFD
    - Terraform state tracks all infrastructure resources
@@ -108,6 +113,7 @@ Workflows can be chained for streamlined deployment:
 5. **Deploy WAF configuration** (separate workflow):
    - Run **Config Deploy** workflow targeting the same environment
    - Use the same IaC stack as the infrastructure deployment (`terraform` or `bicep`)
+   - For Terraform, use the saved-plan approval flow so the `apply` job downloads and applies the same `tfplan` produced by the `plan` job
    - Terraform imports the WAF policy created by the infra stack and applies managed rules from JSON
    - Bicep applies the WAF rule-group overrides from the same JSON config files
    - Config-only changes never touch AFD, APIM, or other infrastructure

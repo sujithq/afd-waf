@@ -90,9 +90,11 @@ GitHub OpenID Connect (OIDC) eliminates the need for long-lived Azure credential
 - No long-lived Azure credential secret is required when OIDC is configured.
 
 ## Environment protection recommendations
-- Require manual approval for test and prod environments.
+- Require manual approval for the environments where Terraform should pause between plan and apply.
+- For Terraform workflows, `apply_terraform=true` creates a saved `tfplan` artifact in the `plan` job and the `apply` job downloads that exact artifact before running `terraform apply tfplan`.
+- Review the plan in the job summary before approving the `apply` job. If a long time passes before approval, rerun the workflow for a fresh plan.
 - Restrict who can deploy to prod environment.
-- Enable artifact retention for config deployment manifests.
+- Keep artifact retention short for saved Terraform plans. The workflows retain `tfplan` artifacts for one day.
 - Scope GitHub environment variables per environment where values differ.
 - Keep workflow permissions minimal: `contents: read` everywhere and `id-token: write` only on Azure deployment jobs.
 
@@ -102,7 +104,8 @@ GitHub OpenID Connect (OIDC) eliminates the need for long-lived Azure credential
 - Azure CLI: upgraded at workflow runtime to the latest available package on Ubuntu runners.
 - GitHub Actions pins:
   - actions/checkout v6.0.2
-  - actions/upload-artifact v4.6.2
+  - actions/upload-artifact v4
+  - actions/download-artifact v4
   - Azure/login v3.0.0
   - hashicorp/setup-terraform v3.1.2
 
@@ -112,7 +115,7 @@ GitHub OpenID Connect (OIDC) eliminates the need for long-lived Azure credential
 - Ensures reproducible `terraform init` across CI/CD runs and local development
 - Prevents silent provider upgrades that could introduce breaking changes
 - Enables auditability: review lock file diffs to see what versions are pinned
-- Required for `terraform apply -auto-approve` to work reliably in CI
+- Required for saved Terraform plans to apply reliably in CI
 
 **Updating lock file**:
 - Run `terraform init` locally to refresh locks if providers update
