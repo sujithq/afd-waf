@@ -63,9 +63,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
-      tf_apply_requested: ${{ steps.plan_terraform.outputs.apply_requested }}
-      tf_has_changes: ${{ steps.plan_terraform.outputs.has_changes }}
-      tf_should_apply: ${{ steps.plan_terraform.outputs.should_apply }}
+      tf_apply_requested: ${{ steps.plan_outputs.outputs.apply_requested }}
+      tf_has_changes: ${{ steps.plan_outputs.outputs.has_changes }}
+      tf_should_apply: ${{ steps.plan_outputs.outputs.should_apply }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -193,11 +193,9 @@ jobs:
             SHOULD_APPLY="true"
           fi
 
-          {
-            echo "apply_requested=$APPLY_REQUESTED"
-            echo "has_changes=$HAS_CHANGES"
-            echo "should_apply=$SHOULD_APPLY"
-          } >> "$GITHUB_OUTPUT"
+          echo "$APPLY_REQUESTED" > apply-requested.txt
+          echo "$HAS_CHANGES" > has-changes.txt
+          echo "$SHOULD_APPLY" > should-apply.txt
 
           if [ "$HAS_CHANGES" = "true" ]; then
             echo "Terraform changes detected."
@@ -230,8 +228,24 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Set Terraform plan outputs
+        id: plan_outputs
+        if: inputs.iac == 'terraform'
+        run: |
+          cd infra/terraform
+          APPLY_REQUESTED=$(cat apply-requested.txt)
+          HAS_CHANGES=$(cat has-changes.txt)
+          SHOULD_APPLY=$(cat should-apply.txt)
+          {
+            echo "apply_requested=$APPLY_REQUESTED"
+            echo "has_changes=$HAS_CHANGES"
+            echo "should_apply=$SHOULD_APPLY"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Plan decision: apply_requested=$APPLY_REQUESTED, has_changes=$HAS_CHANGES, should_apply=$SHOULD_APPLY"
+
       - name: Upload Terraform plan artifact
-        if: inputs.iac == 'terraform' && steps.plan_terraform.outputs.should_apply == 'true'
+        if: inputs.iac == 'terraform' && steps.plan_outputs.outputs.should_apply == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: infra-tfplan-${{ inputs.environment }}
