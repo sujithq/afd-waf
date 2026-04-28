@@ -13,6 +13,22 @@
       "ruleSet": "Microsoft_DefaultRuleSet_2.1",
       "ruleGroup": "SQLI",
       "ruleId": "942100"
+    },
+    {
+      "matchVariable": "QueryStringArgValues",
+      "selectorMatchOperator": "Equals",
+      "selector": "$filter",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "SQLI",
+      "ruleId": "942200"
+    },
+    {
+      "matchVariable": "QueryStringArgValues",
+      "selectorMatchOperator": "Equals",
+      "selector": "$filter",
+      "ruleSet": "Microsoft_DefaultRuleSet_2.1",
+      "ruleGroup": "SQLI",
+      "ruleId": "942370"
     }
   ],
   "disabledBaseExclusions": [
