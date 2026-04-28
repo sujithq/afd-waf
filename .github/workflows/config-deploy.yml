@@ -14,6 +14,16 @@ on:
         type: choice
         options: [terraform, bicep]
         default: terraform
+      apply_terraform:
+        description: Apply Terraform after reviewing the plan
+        required: false
+        type: boolean
+        default: false
+      apply_confirmation:
+        description: Type apply-<environment> to confirm Terraform apply
+        required: false
+        type: string
+        default: ""
   workflow_call:
     inputs:
       environment:
@@ -25,6 +35,16 @@ on:
         required: false
         type: string
         default: terraform
+      apply_terraform:
+        description: Apply Terraform after reviewing the plan
+        required: false
+        type: boolean
+        default: false
+      apply_confirmation:
+        description: Type apply-<environment> to confirm Terraform apply
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -111,8 +131,29 @@ jobs:
             -backend-config="container_name=tfstate" \
             -backend-config="use_azuread_auth=true" \
             -backend-config="key=${{ inputs.environment }}-config.tfstate"
-          terraform apply -auto-approve -input=false \
-            -var-file="env/${{ inputs.environment }}.tfvars"
+          terraform plan -input=false \
+            -var-file="env/${{ inputs.environment }}.tfvars" \
+            -out=tfplan
+          terraform show -no-color tfplan | tee terraform-plan.txt
+          {
+            echo "## Terraform config plan (${{ inputs.environment }})"
+            echo ""
+            echo '```terraform'
+            cat terraform-plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${{ inputs.apply_terraform }}" != "true" ]; then
+            echo "Terraform apply skipped. Review the plan, then rerun with apply_terraform=true and apply_confirmation=apply-${{ inputs.environment }}."
+            exit 0
+          fi
+
+          if [ "${{ inputs.apply_confirmation }}" != "apply-${{ inputs.environment }}" ]; then
+            echo "Refusing to apply. Set apply_confirmation to apply-${{ inputs.environment }}."
+            exit 1
+          fi
+
+          terraform apply -input=false tfplan
 
       - name: Deploy WAF config via Bicep
         if: inputs.iac == 'bicep'

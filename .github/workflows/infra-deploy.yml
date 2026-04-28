@@ -18,6 +18,16 @@ on:
         required: false
         type: boolean
         default: false
+      apply_terraform:
+        description: Apply Terraform after reviewing the plan
+        required: false
+        type: boolean
+        default: false
+      apply_confirmation:
+        description: Type apply-<environment> to confirm Terraform apply
+        required: false
+        type: string
+        default: ""
   workflow_call:
     inputs:
       environment:
@@ -33,6 +43,16 @@ on:
         required: false
         type: boolean
         default: false
+      apply_terraform:
+        description: Apply Terraform after reviewing the plan
+        required: false
+        type: boolean
+        default: false
+      apply_confirmation:
+        description: Type apply-<environment> to confirm Terraform apply
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -143,15 +163,37 @@ jobs:
                 "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$RG_NAME"
             fi
           fi
-          terraform apply -auto-approve -input=false
+          terraform plan -input=false -out=tfplan
+          terraform show -no-color tfplan | tee terraform-plan.txt
+          {
+            echo "## Terraform infra plan (${{ inputs.environment }})"
+            echo ""
+            echo '```terraform'
+            cat terraform-plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${{ inputs.apply_terraform }}" != "true" ]; then
+            echo "Terraform apply skipped. Review the plan, then rerun with apply_terraform=true and apply_confirmation=apply-${{ inputs.environment }}."
+            exit 0
+          fi
+
+          if [ "${{ inputs.apply_confirmation }}" != "apply-${{ inputs.environment }}" ]; then
+            echo "Refusing to apply. Set apply_confirmation to apply-${{ inputs.environment }}."
+            exit 1
+          fi
+
+          terraform apply -input=false tfplan
           echo "--- Infra outputs (pass to config-deploy) ---"
           terraform output -json | jq '{waf_policy_id: .waf_policy_id.value, waf_policy_name: .waf_policy_name.value, domain_waf_policy_ids: .domain_waf_policy_ids.value, domain_waf_policy_names: .domain_waf_policy_names.value}'
 
   config-deploy:
     needs: deploy
-    if: inputs.run_config_deploy == true
+    if: inputs.run_config_deploy == true && (inputs.iac != 'terraform' || inputs.apply_terraform == true)
     uses: ./.github/workflows/config-deploy.yml
     with:
       environment: ${{ inputs.environment }}
       iac: ${{ inputs.iac }}
+      apply_terraform: false
+      apply_confirmation: ""
     secrets: inherit
