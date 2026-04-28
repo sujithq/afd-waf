@@ -38,6 +38,11 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Install Azure CLI Front Door extension
+        run: |
+          az config set extension.dynamic_install_allow_preview=false
+          az extension add --name front-door --upgrade
+
       - name: Apply known-good config
         shell: pwsh
         run: |

@@ -9,7 +9,16 @@
       "required": ["matchVariable", "selectorMatchOperator", "selector", "ruleSet", "ruleGroup", "ruleId"],
       "additionalProperties": false,
       "properties": {
-        "matchVariable": { "type": "string", "enum": ["QueryStringArgNames", "QueryStringArgValues"] },
+        "matchVariable": {
+          "type": "string",
+          "enum": [
+            "QueryStringArgNames",
+            "RequestBodyPostArgNames",
+            "RequestCookieNames",
+            "RequestHeaderNames",
+            "RequestBodyJsonArgNames"
+          ]
+        },
         "selectorMatchOperator": { "type": "string", "enum": ["Equals"] },
         "selector": { "type": "string" },
         "ruleSet": { "type": "string" },

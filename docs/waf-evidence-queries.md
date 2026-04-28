@@ -137,10 +137,10 @@ This changes the live WAF policy mode without running Terraform. Update the matc
 
 Run a query parameter that is not fully excluded for the target policy. The best observed demo variable in this repository is `$filter` with an OData function value such as `contains(Name,'a')`:
 
-- `$filter` is included in the shared base OData query-name exclusions, but those exclusions target `QueryStringArgNames`.
-- The false positive is caused by the `$filter` query value, for example `contains(Name,'a')`, matching SQLi managed rules.
+- `$filter` is included in the shared base OData query-name exclusions for `942100`.
+- The false positive is caused by the `$filter` query argument, for example `contains(Name,'a')`, matching additional SQLi managed rules.
 - Recent live WAF logs showed `$filter=contains(Name,'a')` and `$filter=startswith(Name,'I')` matching SQLi rules such as `942200`, `942360`, and `942370`, followed by `949110` anomaly-score evaluation.
-- The same variable can later be allowed by adding narrow `QueryStringArgValues` exclusions for `$filter` on the matching rule IDs.
+- The same variable can later be allowed by adding narrow `QueryStringArgNames` exclusions for `$filter` on the matching rule IDs. `QueryStringArgValues` is not supported by the AzureRM `azurerm_cdn_frontdoor_firewall_policy` resource.
 
 That gives a clean before/after story: not excluded -> WAF match or block, then add the exclusion -> request is allowed.
 
@@ -154,7 +154,7 @@ After validating the block, add selector-level exclusions to `config/waf/{enviro
 
 ```json
 {
-	"matchVariable": "QueryStringArgValues",
+	"matchVariable": "QueryStringArgNames",
 	"selectorMatchOperator": "Equals",
 	"selector": "$filter",
 	"ruleSet": "Microsoft_DefaultRuleSet_2.1",
@@ -165,7 +165,7 @@ After validating the block, add selector-level exclusions to `config/waf/{enviro
 
 Repeat only for the specific rule IDs proven by WAF logs, such as `942370` or `942360`, rather than broadly disabling SQLi inspection.
 
-Other OData query names worth testing when you want additional false-positive candidates are `$apply`, `$compute`, `$format`, and `$search`. Keep the final exclusion selector as narrow as possible: use `QueryStringArgValues` when the value caused the match and `QueryStringArgNames` only when the argument name itself caused the match.
+Other OData query names worth testing when you want additional false-positive candidates are `$apply`, `$compute`, `$format`, and `$search`. Keep the final exclusion selector as narrow as possible: use the exact query argument name and only the rule IDs proven by WAF logs.
 
 Switch the policy back to Detection after the demo if needed:
 

@@ -2,7 +2,7 @@
   "metadata": {
     "changeTicket": "CHG-DEV-DOMAIN-A-0001",
     "owner": "domain-a-team",
-    "reason": "Domain A supports an additional OData search query argument while opting out of inherited $top tuning",
+    "reason": "Domain A supports additional OData query arguments while opting out of inherited $top tuning",
     "expiresOn": "2026-12-31"
   },
   "exclusions": [
@@ -15,7 +15,7 @@
       "ruleId": "942100"
     },
     {
-      "matchVariable": "QueryStringArgValues",
+      "matchVariable": "QueryStringArgNames",
       "selectorMatchOperator": "Equals",
       "selector": "$filter",
       "ruleSet": "Microsoft_DefaultRuleSet_2.1",
@@ -23,7 +23,7 @@
       "ruleId": "942200"
     },
     {
-      "matchVariable": "QueryStringArgValues",
+      "matchVariable": "QueryStringArgNames",
       "selectorMatchOperator": "Equals",
       "selector": "$filter",
       "ruleSet": "Microsoft_DefaultRuleSet_2.1",
