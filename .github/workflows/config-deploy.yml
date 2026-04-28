@@ -163,8 +163,17 @@ jobs:
           {
             echo "## Terraform config plan (${{ inputs.environment }})"
             echo ""
+            echo "Apply requested: \`${{ inputs.apply_terraform }}\`"
+            echo "Terraform changes detected: \`$([ "$PLAN_EXIT_CODE" -eq 2 ] && echo true || echo false)\`"
+            echo ""
             if [ "$PLAN_EXIT_CODE" -eq 0 ]; then
               echo "No Terraform changes detected. Approval and apply jobs will be skipped."
+              echo ""
+            elif [ "${{ inputs.apply_terraform }}" = "true" ]; then
+              echo "Terraform changes detected. The approve job will wait for the ${{ inputs.environment }} environment review before apply can start."
+              echo ""
+            else
+              echo "Terraform changes detected, but apply was not requested for this run."
               echo ""
             fi
             echo '```terraform'
@@ -255,6 +264,20 @@ jobs:
             --parameters @infra/bicep-config/env/${{ inputs.environment }}.parameters.json \
             --parameters wafPolicyName="$WAF_NAME" \
             --parameters "ruleGroupOverrides=$RULE_GROUP_OVERRIDES"
+
+  no_changes:
+    needs: plan
+    if: inputs.iac != 'bicep' && inputs.apply_terraform == true && needs.plan.outputs.tf_has_changes != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain skipped apply
+        run: |
+          echo "Terraform reported no config changes, so approval and apply were skipped."
+          {
+            echo "## Config apply skipped"
+            echo ""
+            echo "Terraform reported no config changes for ${{ inputs.environment }}. The saved-plan approval and apply jobs are intentionally skipped for no-op plans."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   approve:
     needs: plan
