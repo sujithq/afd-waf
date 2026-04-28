@@ -12,6 +12,7 @@ module "afd" {
   resource_group_name = var.resource_group_name
   sku                 = "Premium_AzureFrontDoor"
   enable_telemetry    = true
+  diagnostic_settings = var.diagnostic_settings
 
   front_door_endpoints = {
     endpoint = {

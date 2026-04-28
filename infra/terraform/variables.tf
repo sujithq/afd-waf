@@ -22,3 +22,14 @@ variable "apim_publisher_email" {
 variable "apim_publisher_name" {
   type = string
 }
+
+variable "enable_monitoring" {
+  type    = bool
+  default = true
+}
+
+variable "log_analytics_workspace_id" {
+  type     = string
+  default  = null
+  nullable = true
+}

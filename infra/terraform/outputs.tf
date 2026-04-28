@@ -17,3 +17,7 @@ output "domain_waf_policy_names" {
 output "apim_name" {
   value = module.apim.apim_name
 }
+
+output "log_analytics_workspace_id" {
+  value = local.monitoring_workspace_id
+}
