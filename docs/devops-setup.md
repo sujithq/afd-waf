@@ -92,7 +92,9 @@ GitHub OpenID Connect (OIDC) eliminates the need for long-lived Azure credential
 ## Environment protection recommendations
 - Require manual approval for the environments where Terraform should pause between plan and apply.
 - For Terraform workflows, `apply_terraform=true` creates a saved `tfplan` artifact in the `plan` job and the `apply` job downloads that exact artifact before running `terraform apply tfplan`.
-- Review the plan in the job summary before approving the `apply` job. If a long time passes before approval, rerun the workflow for a fresh plan.
+- Configure required reviewers on the existing `dev`, `test`, and `prod` GitHub environments when you want deployment approval. The workflows use those environments for Azure OIDC and for the explicit `approve` job.
+- Review the plan in the job summary before approving the `approve` job. The apply job refuses saved plans older than 60 minutes; rerun the workflow for a fresh plan if approval is delayed.
+- If an environment has required reviewers, any job using that environment may pause before it can continue. In these workflows, that includes Azure OIDC jobs and the explicit Terraform `approve` job.
 - Restrict who can deploy to prod environment.
 - Keep artifact retention short for saved Terraform plans. The workflows retain `tfplan` artifacts for one day.
 - Scope GitHub environment variables per environment where values differ.

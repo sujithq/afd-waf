@@ -20,7 +20,7 @@ on:
         type: boolean
         default: false
       apply_confirmation:
-        description: Type apply-<environment> to allow the apply job to run
+        description: Required only if Apply Terraform is checked. Type apply-<environment>
         required: false
         type: string
         default: ""
@@ -41,7 +41,7 @@ on:
         type: boolean
         default: false
       apply_confirmation:
-        description: Type apply-<environment> to allow the apply job to run
+        description: Required only if Apply Terraform is true. Type apply-<environment>
         required: false
         type: string
         default: ""
@@ -135,6 +135,7 @@ jobs:
             -var-file="env/${{ inputs.environment }}.tfvars" \
             -out=tfplan
           terraform show -no-color tfplan | tee terraform-plan.txt
+          date -u +%s > plan-created-at.txt
 
           {
             echo "## Terraform config plan (${{ inputs.environment }})"
@@ -152,6 +153,7 @@ jobs:
           path: |
             infra/terraform-config/tfplan
             infra/terraform-config/terraform-plan.txt
+            infra/terraform-config/plan-created-at.txt
           retention-days: 1
 
       - name: Deploy WAF config via Bicep
@@ -227,8 +229,19 @@ jobs:
             --parameters wafPolicyName="$WAF_NAME" \
             --parameters "ruleGroupOverrides=$RULE_GROUP_OVERRIDES"
 
-  apply:
+  approve:
     needs: plan
+    if: inputs.iac != 'bicep' && inputs.apply_terraform == true
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Confirm saved Terraform plan review
+        run: |
+          echo "Review the Terraform plan in the plan job summary before approving this job."
+          echo "The apply job will download and apply the saved tfplan artifact from this workflow run."
+
+  apply:
+    needs: approve
     if: inputs.iac != 'bicep' && inputs.apply_terraform == true
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
@@ -270,6 +283,15 @@ jobs:
           fi
 
           cd infra/terraform-config
+          PLAN_CREATED_AT=$(cat plan-created-at.txt)
+          NOW=$(date -u +%s)
+          MAX_PLAN_AGE_SECONDS=3600
+          PLAN_AGE_SECONDS=$((NOW - PLAN_CREATED_AT))
+          if [ "$PLAN_AGE_SECONDS" -gt "$MAX_PLAN_AGE_SECONDS" ]; then
+            echo "Refusing to apply: saved Terraform plan is older than 60 minutes. Rerun the workflow to create a fresh plan."
+            exit 1
+          fi
+
           terraform init -upgrade=false \
             -backend-config="resource_group_name=${{ vars.TF_BACKEND_RG }}" \
             -backend-config="storage_account_name=${{ vars.TF_BACKEND_SA }}" \

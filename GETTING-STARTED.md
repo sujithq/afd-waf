@@ -494,15 +494,15 @@ After the bootstrap workflow completes, you **must manually** add these GitHub r
 1. Go to **Actions → Infra Deploy**
 2. Click **Run workflow**
 3. Select **environment**: `dev` and **iac**: `terraform`.
-4. For a review-only plan, leave **apply_terraform** as `false`.
-5. To apply the exact saved plan from the same workflow run, set **apply_terraform** to `true` and **apply_confirmation** to `apply-dev`, then review the plan summary before approving the `apply` job.
+4. For a review-only plan, leave **apply_terraform** as `false`; **apply_confirmation** is ignored and can stay blank.
+5. To apply the exact saved plan from the same workflow run, set **apply_terraform** to `true` and **apply_confirmation** to `apply-dev`, then review the plan summary before approving the `approve` job.
 6. Set **run_config_deploy** to `true` only when you want a follow-up Config Deploy plan after the infra apply succeeds.
 7. Click **Run workflow**
 
 This will:
 - Always create a Terraform plan and publish it to the job summary
 - Upload the binary `tfplan` artifact only when `apply_terraform=true`
-- Apply the saved plan in a separate `apply` job after confirmation and environment approval
+- Pause in a separate `approve` job for plan review, then apply the saved plan in the `apply` job
 - If `run_config_deploy` is true, automatically run a follow-up Config Deploy plan after a successful Terraform infra apply
 
 #### 4. (Optional) Run Config Deploy Separately
@@ -513,15 +513,16 @@ If you didn't enable automatic config deployment, or want to update WAF configur
 2. Click **Run workflow**
 3. Select **environment**: `dev`
 4. Select **iac**: `terraform`
-5. For a review-only plan, leave **apply_terraform** as `false`.
-6. To apply the exact saved config plan from the same workflow run, set **apply_terraform** to `true` and **apply_confirmation** to `apply-dev`, then approve the `apply` job after reviewing the plan summary.
+5. For a review-only plan, leave **apply_terraform** as `false`; **apply_confirmation** is ignored and can stay blank.
+6. To apply the exact saved config plan from the same workflow run, set **apply_terraform** to `true` and **apply_confirmation** to `apply-dev`, then approve the `approve` job after reviewing the plan summary.
 7. Click **Run workflow**
 
 Terraform approval model:
 - A normal plan-only run does not apply and does not reuse a plan in a later workflow run.
-- A saved-plan apply run creates `tfplan` in the `plan` job, uploads it as a short-lived artifact, and the `apply` job downloads and applies that same artifact.
-- Configure required reviewers on the GitHub environment if you want the `apply` job to pause for human approval. If the same environment also protects the `plan` job, approve the plan job first, then review the summary before approving apply.
-- If a long time passes before approval, rerun the workflow for a fresh plan. Terraform rejects stale plans when state changes, but out-of-band Azure drift that is not reflected in state is not re-checked by an already saved plan.
+- A saved-plan apply run creates `tfplan` in the `plan` job, uploads it as a short-lived artifact, pauses in the `approve` job, and then the `apply` job downloads and applies that same artifact.
+- The apply job refuses saved plans older than 60 minutes, so rerun the workflow if approval is delayed.
+- Configure required reviewers on the existing `dev`, `test`, and `prod` GitHub environments when you want the explicit approval gate to pause before apply. Because those same environments are also used for Azure OIDC, a protected environment can also pause jobs that need to sign in to Azure.
+- Terraform rejects stale plans when state changes, but out-of-band Azure drift that is not reflected in state is not re-checked by an already saved plan.
 
 ### Workflow Chaining
 
